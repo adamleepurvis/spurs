@@ -15,23 +15,23 @@ export default function PositionTabs({ posFilter, setPosFilter, startableRemaini
           <button
             key={tab}
             onClick={() => setPosFilter(tab)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-display uppercase tracking-wide border transition-colors ${
               active
-                ? 'bg-indigo-500/20 border-indigo-400 text-indigo-200'
-                : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                ? 'bg-accent/15 border-accent text-ink'
+                : 'bg-pitch-surface border-pitch-border text-ink-dim hover:border-accent/50'
             }`}
           >
             {tab}
             {remaining !== null && (
               <span
-                className={`text-[11px] rounded-full px-1.5 py-0.5 leading-none ${
+                className={`font-mono normal-case tracking-normal text-[11px] rounded px-1.5 py-0.5 leading-none ${
                   scarce
-                    ? 'bg-rose-500/30 text-rose-200 border border-rose-500/50'
-                    : 'bg-slate-700/60 text-slate-300'
+                    ? 'bg-danger/20 text-danger border border-danger/40'
+                    : 'bg-pitch-surface2 text-ink-dim'
                 }`}
                 title={`Replacement level: ${levels[tab] ?? '—'} pts (rank ${replacementRank[tab]})`}
               >
-                {remaining} startable left
+                {remaining} left
               </span>
             )}
           </button>
