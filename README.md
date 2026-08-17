@@ -55,7 +55,7 @@ For each position (GK/DEF/MID/FWD):
    projected points descending.
 2. **Replacement level** = the points of the Nth player in that list,
    where N is the position's configurable "replacement rank" (defaults:
-   GK 10, DEF 35, MID 35, FWD 20 — tuned for a 9-team snake draft with
+   GK 9, DEF 31, MID 31, FWD 18 — tuned for an 8-team snake draft with
    roster requirements of 2 GK / 5 DEF / 5 MID / 3 FWD).
 3. Every undrafted player's **VORP** = their projected points −
    replacement level for their position.

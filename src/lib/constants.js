@@ -8,5 +8,5 @@ export const POSITION_COLORS = {
 }
 
 export const DEFAULT_ROSTER_REQ = { GK: 2, DEF: 5, MID: 5, FWD: 3 }
-export const DEFAULT_REPLACEMENT_RANK = { GK: 10, DEF: 35, MID: 35, FWD: 20 }
-export const DEFAULT_NUM_TEAMS = 9
+export const DEFAULT_REPLACEMENT_RANK = { GK: 9, DEF: 31, MID: 31, FWD: 18 }
+export const DEFAULT_NUM_TEAMS = 8

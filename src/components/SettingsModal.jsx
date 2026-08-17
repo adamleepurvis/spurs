@@ -71,7 +71,7 @@ export default function SettingsModal({
           <p className="text-[11px] text-ink-dim/80 mb-2">
             Replacement level = points of the Nth-best remaining undrafted player at that
             position. Roughly numTeams &times; typical starters used at that position &mdash;
-            defaults are tuned for a 9-team snake draft.
+            defaults are tuned for an 8-team snake draft.
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {POSITIONS.map((pos) => (
