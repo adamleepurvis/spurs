@@ -17,23 +17,35 @@ npm run dev
 
 Then open the printed local URL (defaults to http://localhost:5173).
 
-## ⚠️ Placeholder data
+## Data source
 
-`src/data/players.js` was written entirely by an LLM from general
-knowledge — it was **not** pulled from any live stats feed, API, or
-official FPL data. Both the player pool (name/team/position) and the
-`points` field (projected season fantasy points) are placeholders, and
-the pool can be stale by however long it's been since the model's
-knowledge cutoff (e.g. it listed Mohamed Salah at Liverpool after he'd
-actually left for Trabzonspor). The app shows an in-app warning to the
-same effect. Before using this for a real draft:
+`src/data/players.js` was regenerated from the official Fantasy Premier
+League API (`bootstrap-static`), fetched by the user on 2026-08-17,
+ahead of 2026-27 Gameweek 1 (deadline 2026-08-21). Name/team/position
+are real and current as of that fetch. It replaced an earlier
+hand-written placeholder pool that turned out to have real gaps — most
+notably it still listed Mohamed Salah at Liverpool after he'd actually
+left for Trabzonspor.
 
-- Verify the squad list against a current source (e.g. the official FPL
-  site) and fix any transfers/retirements — either by editing the data
-  file directly, or removing/renaming players in the running app.
-- Replace `points` with real projections, either by editing the data
-  file or using the inline "click to edit" points override in the
-  player table.
+`points` is each player's **actual total FPL points from the completed
+2025-26 season** — real historical data, used as a starting-point
+baseline, not a real projections model (no adjustment for age, new-club
+fit, tactical change, etc). Entries with essentially no 2025-26 Premier
+League history (promoted-club squads, players newly arrived in the
+league) have `estimated: true` and are badged `EST` in the app — their
+`points` is instead derived from FPL price using the position's real
+points-per-cost ratio among established players, since there's no real
+history to draw from.
+
+Before a real draft:
+
+- Treat `EST`-badged players' points as rougher guesses and adjust
+  by eye.
+- Re-fetch `bootstrap-static` periodically during the season if you
+  want points to reflect the current season rather than last season's
+  baseline.
+- Edit any player's points inline (click to edit in the table), or
+  edit the data file directly.
 
 ## How VORP is calculated
 

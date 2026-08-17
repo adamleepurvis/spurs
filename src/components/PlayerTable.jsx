@@ -98,7 +98,17 @@ export default function PlayerTable({
               return (
                 <tr key={player.id} className="border-b border-pitch-border/60 hover:bg-pitch-surface2/60">
                   <td className="px-3 py-1.5 font-mono text-ink-dim">{player.rank}</td>
-                  <td className="px-3 py-1.5 font-medium">{player.name}</td>
+                  <td className="px-3 py-1.5 font-medium">
+                    {player.name}
+                    {player.estimated && (
+                      <span
+                        className="ml-1.5 align-middle text-[9px] font-mono font-normal text-ink-dim border border-pitch-border rounded px-1 py-0.5"
+                        title="No 2025-26 Premier League history (promoted club or new signing) — points is a price-based estimate, not real history"
+                      >
+                        EST
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-1.5 text-ink-dim">{player.team}</td>
                   <td className="px-3 py-1.5">
                     <span
