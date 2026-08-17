@@ -158,7 +158,6 @@ export const PLAYERS_SEED = [
   p('Ryan Gravenberch', 'LIV', 'MID', 128),
   p('Alexis Mac Allister', 'LIV', 'MID', 146),
   p('Dominik Szoboszlai', 'LIV', 'MID', 152),
-  p('Mohamed Salah', 'LIV', 'MID', 258),
   p('Florian Wirtz', 'LIV', 'MID', 176),
   p('Cody Gakpo', 'LIV', 'FWD', 162),
   p('Alexander Isak', 'LIV', 'FWD', 200),

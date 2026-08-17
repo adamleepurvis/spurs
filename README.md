@@ -19,13 +19,21 @@ Then open the printed local URL (defaults to http://localhost:5173).
 
 ## ⚠️ Placeholder data
 
-`src/data/players.js` seeds ~210 real 2025-26 Premier League players
-(name/team/position), but the `points` field (projected season fantasy
-points) is a rough, made-up placeholder based on general FPL tiering
-knowledge — **not** a real projections model. The app also shows this
-warning in-app. Replace it with your own projections before using this
-for a real draft, either by editing the data file or by using the
-inline "click to edit" points override in the player table.
+`src/data/players.js` was written entirely by an LLM from general
+knowledge — it was **not** pulled from any live stats feed, API, or
+official FPL data. Both the player pool (name/team/position) and the
+`points` field (projected season fantasy points) are placeholders, and
+the pool can be stale by however long it's been since the model's
+knowledge cutoff (e.g. it listed Mohamed Salah at Liverpool after he'd
+actually left for Trabzonspor). The app shows an in-app warning to the
+same effect. Before using this for a real draft:
+
+- Verify the squad list against a current source (e.g. the official FPL
+  site) and fix any transfers/retirements — either by editing the data
+  file directly, or removing/renaming players in the running app.
+- Replace `points` with real projections, either by editing the data
+  file or using the inline "click to edit" points override in the
+  player table.
 
 ## How VORP is calculated
 

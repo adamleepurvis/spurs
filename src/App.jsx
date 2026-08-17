@@ -163,9 +163,11 @@ export default function App() {
       <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 max-w-[1600px] w-full mx-auto">
         <div className="flex-1 min-w-0 flex flex-col gap-3">
           <div className="rounded-lg border border-gold/30 bg-gold/10 text-gold text-xs px-3 py-2">
-            <strong>Placeholder data:</strong> player pool reflects the 2025-26 PL as best known,
-            but projected points are made-up placeholder values, not a real projections model.
-            Edit any player&apos;s points inline before using this for a real draft.
+            <strong>Placeholder data:</strong> the player pool and projected points were written
+            by an LLM from general knowledge, not pulled from any live stats feed or API, and its
+            information can be months out of date (transfers, injuries, retirements). Verify the
+            squad against a current source (e.g. the official FPL site) and edit any player&apos;s
+            points inline before using this for a real draft.
           </div>
 
           <PositionTabs
