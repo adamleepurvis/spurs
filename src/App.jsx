@@ -164,10 +164,15 @@ export default function App() {
         <div className="flex-1 min-w-0 flex flex-col gap-3">
           <div className="rounded-lg border border-gold/30 bg-gold/10 text-gold text-xs px-3 py-2">
             <strong>Data note:</strong> the player pool (name/team/position) is real, pulled from
-            the official FPL API ahead of 2026-27 Gameweek 1. Points are each player&apos;s actual
-            2025-26 total — a real baseline, not a projection model — except entries badged{' '}
-            <span className="font-mono border border-pitch-border rounded px-1">EST</span>, which
-            have no Premier League history and are guessed from price instead. Edit any
+            the official FPL API ahead of 2026-27 Gameweek 1. Points badged{' '}
+            <span className="font-mono border border-positive/40 text-positive rounded px-1">
+              XP
+            </span>{' '}
+            are a real season-long projection from DraftFantasy&apos;s draft cheat sheet.
+            Unbadged points fall back to the player&apos;s actual 2025-26 total (real history, not
+            a projection); entries badged{' '}
+            <span className="font-mono border border-pitch-border rounded px-1">EST</span> have no
+            Premier League history at all and are guessed from price instead. Edit any
             player&apos;s points inline to refine before a real draft.
           </div>
 

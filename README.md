@@ -27,23 +27,31 @@ hand-written placeholder pool that turned out to have real gaps — most
 notably it still listed Mohamed Salah at Liverpool after he'd actually
 left for Trabzonspor.
 
-`points` is each player's **actual total FPL points from the completed
-2025-26 season** — real historical data, used as a starting-point
-baseline, not a real projections model (no adjustment for age, new-club
-fit, tactical change, etc). Entries with essentially no 2025-26 Premier
-League history (promoted-club squads, players newly arrived in the
-league) have `estimated: true` and are badged `EST` in the app — their
-`points` is instead derived from FPL price using the position's real
-points-per-cost ratio among established players, since there's no real
-history to draw from.
+`points` is filled in from three sources, in priority order:
+
+1. **`projected: true`, badged `XP`** — a real season-long points
+   projection from [DraftFantasy's FPL Draft Cheat
+   Sheet](https://www.draftfantasy.com/fpl/draft-cheat-sheet), pasted in
+   by the user. This is a real forward-looking model built specifically
+   for draft leagues (not classic FPL), and is the best-quality number
+   in the pool. Covers 160 of the ~270 players.
+2. **Unbadged** — falls back to the player's actual total FPL points
+   from the completed 2025-26 season for anyone the cheat sheet doesn't
+   cover. Real historical data, but not a projection (no adjustment for
+   age, new-club fit, tactical change, etc).
+3. **`estimated: true`, badged `EST`** — for players with essentially no
+   2025-26 Premier League history on top of that (promoted-club squads,
+   players newly arrived in the league), `points` is instead derived
+   from FPL price using the position's real points-per-cost ratio among
+   established players, since there's no real history or projection to
+   draw from.
 
 Before a real draft:
 
 - Treat `EST`-badged players' points as rougher guesses and adjust
   by eye.
-- Re-fetch `bootstrap-static` periodically during the season if you
-  want points to reflect the current season rather than last season's
-  baseline.
+- Re-paste an updated cheat sheet (or any other real projections table)
+  as the season develops to refresh the `XP`-tier numbers.
 - Edit any player's points inline (click to edit in the table), or
   edit the data file directly.
 

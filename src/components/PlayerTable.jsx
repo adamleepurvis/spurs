@@ -100,6 +100,14 @@ export default function PlayerTable({
                   <td className="px-3 py-1.5 font-mono text-ink-dim">{player.rank}</td>
                   <td className="px-3 py-1.5 font-medium">
                     {player.name}
+                    {player.projected && (
+                      <span
+                        className="ml-1.5 align-middle text-[9px] font-mono font-normal text-positive border border-positive/40 rounded px-1 py-0.5"
+                        title="Season-long points projection from a real draft-projections source (DraftFantasy), not last season's history"
+                      >
+                        XP
+                      </span>
+                    )}
                     {player.estimated && (
                       <span
                         className="ml-1.5 align-middle text-[9px] font-mono font-normal text-ink-dim border border-pitch-border rounded px-1 py-0.5"
