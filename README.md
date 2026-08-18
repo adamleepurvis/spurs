@@ -88,3 +88,6 @@ per position) are all editable from the Settings modal.
 - Draft-run tracker (flags 3+ consecutive picks at the same position)
 - Inline-editable projected points per player, feeding straight back
   into VORP
+- "+ Add Player" for anyone missing from the seeded pool (a late trade,
+  a name mismatch) — set a placeholder name/team/position/points and
+  they draft and score like any other player, badged `CUSTOM`

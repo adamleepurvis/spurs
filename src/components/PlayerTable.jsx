@@ -62,6 +62,7 @@ export default function PlayerTable({
   selectedTeamName,
   selectedTeamCounts,
   rosterReq,
+  onOpenAddPlayer,
 }) {
   return (
     <div className="rounded-lg border border-pitch-border bg-pitch-surface/60 flex-1 flex flex-col min-h-0">
@@ -75,6 +76,13 @@ export default function PlayerTable({
         <span className="font-mono text-xs text-ink-dim whitespace-nowrap">
           {rows.length} undrafted shown
         </span>
+        <button
+          onClick={onOpenAddPlayer}
+          title="Add a placeholder player not in the pool"
+          className="text-xs px-2.5 py-1.5 rounded border border-pitch-border bg-pitch-surface2 hover:border-accent/60 font-medium whitespace-nowrap transition-colors"
+        >
+          + Add Player
+        </button>
       </div>
 
       <div className="overflow-auto">
@@ -116,6 +124,14 @@ export default function PlayerTable({
                         EST
                       </span>
                     )}
+                    {player.custom && (
+                      <span
+                        className="ml-1.5 align-middle text-[9px] font-mono font-normal text-accent border border-accent/40 rounded px-1 py-0.5"
+                        title="Manually added — not part of the seeded pool"
+                      >
+                        CUSTOM
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-1.5 text-ink-dim">{player.team}</td>
                   <td className="px-3 py-1.5">
@@ -152,7 +168,15 @@ export default function PlayerTable({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-3 py-8 text-center text-ink-dim">
-                  No undrafted players match this filter.
+                  <div className="flex flex-col items-center gap-2">
+                    <span>No undrafted players match this filter.</span>
+                    <button
+                      onClick={onOpenAddPlayer}
+                      className="text-xs px-2.5 py-1.5 rounded border border-pitch-border bg-pitch-surface2 hover:border-accent/60 font-medium transition-colors"
+                    >
+                      {search.trim() ? `+ Add "${search.trim()}" as a placeholder player` : '+ Add Player'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             )}

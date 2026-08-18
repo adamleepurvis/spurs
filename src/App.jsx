@@ -15,6 +15,7 @@ import PositionTabs from './components/PositionTabs'
 import PlayerTable from './components/PlayerTable'
 import TeamPanel from './components/TeamPanel'
 import RunTrackerBanner from './components/RunTrackerBanner'
+import AddPlayerModal from './components/AddPlayerModal'
 
 export default function App() {
   const [numTeams, setNumTeams] = useState(DEFAULT_NUM_TEAMS)
@@ -26,6 +27,8 @@ export default function App() {
   const [draftedPicks, setDraftedPicks] = useState([]) // [{pickNumber, playerId, teamIndex, pos}]
   const [overrides, setOverrides] = useState({}) // playerId -> number
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [customPlayers, setCustomPlayers] = useState([])
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false)
 
   const [posFilter, setPosFilter] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -55,15 +58,17 @@ export default function App() {
 
   const draftedIds = useMemo(() => new Set(draftedPicks.map((d) => d.playerId)), [draftedPicks])
 
+  const allPlayers = useMemo(() => [...PLAYERS_SEED, ...customPlayers], [customPlayers])
+
   const playersById = useMemo(() => {
     const map = new Map()
-    for (const p of PLAYERS_SEED) map.set(p.id, p)
+    for (const p of allPlayers) map.set(p.id, p)
     return map
-  }, [])
+  }, [allPlayers])
 
   const { board, levels, startableRemaining } = useMemo(
-    () => computeBoard(PLAYERS_SEED, draftedIds, overrides, replacementRank),
-    [draftedIds, overrides, replacementRank]
+    () => computeBoard(allPlayers, draftedIds, overrides, replacementRank),
+    [allPlayers, draftedIds, overrides, replacementRank]
   )
 
   // Roster counts + drafted player lists per team.
@@ -105,6 +110,11 @@ export default function App() {
 
   function renameTeam(index, name) {
     setTeamNames((prev) => prev.map((n, i) => (i === index ? name : n)))
+  }
+
+  function addCustomPlayer({ name, team, pos, points }) {
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setCustomPlayers((prev) => [...prev, { id, name, team, pos, points, custom: true }])
   }
 
   const filteredBoard = useMemo(() => {
@@ -197,6 +207,7 @@ export default function App() {
             selectedTeamName={teamNames[selectedTeamIndex]}
             selectedTeamCounts={rosterCounts[selectedTeamIndex] || emptyRosterCounts()}
             rosterReq={rosterReq}
+            onOpenAddPlayer={() => setAddPlayerOpen(true)}
           />
         </div>
 
@@ -221,6 +232,14 @@ export default function App() {
           replacementRank={replacementRank}
           setReplacementRank={setReplacementRank}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {addPlayerOpen && (
+        <AddPlayerModal
+          initialName={search}
+          onAdd={addCustomPlayer}
+          onClose={() => setAddPlayerOpen(false)}
         />
       )}
     </div>
