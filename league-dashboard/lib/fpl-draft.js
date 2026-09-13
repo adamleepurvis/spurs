@@ -1,4 +1,5 @@
 const DRAFT_API = "https://draft.premierleague.com/api";
+const CLASSIC_API = "https://fantasy.premierleague.com/api";
 
 export const LEAGUE_ID = process.env.FPL_DRAFT_LEAGUE_ID ?? "42004";
 export const MY_ENTRY_ID = Number(process.env.FPL_DRAFT_ENTRY_ID ?? "261801");
@@ -261,5 +262,66 @@ export async function getMatchupDetail(entryIdA, entryIdB) {
     finished: match.finished,
     team1,
     team2,
+  };
+}
+
+const FREE_AGENT_STATUSES = new Set(["a", "d"]);
+const POSITION_LIMIT = 20;
+
+/**
+ * Undrafted players, grouped by position and ranked by next-gameweek
+ * expected points. The draft API's own `ep_next` is always null, so
+ * it's cross-referenced from the classic FPL API (same players, same
+ * `code` identifier) which computes a real projection.
+ */
+export async function getFreeAgents() {
+  const [bootstrap, elementStatus, classicBootstrap] = await Promise.all([
+    fetchJson(`${DRAFT_API}/bootstrap-static`),
+    fetchJson(`${DRAFT_API}/league/${LEAGUE_ID}/element-status`),
+    fetchJson(`${CLASSIC_API}/bootstrap-static/`),
+  ]);
+
+  const teams = new Map(bootstrap.teams.map((t) => [t.id, t.short_name]));
+  const positions = new Map(
+    bootstrap.element_types.map((t) => [t.id, t.singular_name_short])
+  );
+  const ownerByElement = new Map(
+    elementStatus.element_status.map((s) => [s.element, s.owner])
+  );
+  const epNextByCode = new Map(
+    classicBootstrap.elements.map((e) => [e.code, e.ep_next])
+  );
+
+  const freeAgents = bootstrap.elements
+    .filter(
+      (el) =>
+        ownerByElement.get(el.id) == null && FREE_AGENT_STATUSES.has(el.status)
+    )
+    .map((el) => {
+      const epNextRaw = epNextByCode.get(el.code);
+      const epNext = epNextRaw != null ? Number(epNextRaw) : null;
+      return {
+        id: el.id,
+        name: el.web_name,
+        pos: positions.get(el.element_type),
+        team: teams.get(el.team),
+        totalPoints: el.total_points,
+        epNext,
+        status: el.status,
+        news: el.news,
+      };
+    });
+
+  const byPosition = {};
+  for (const pos of ["GKP", "DEF", "MID", "FWD"]) {
+    byPosition[pos] = freeAgents
+      .filter((p) => p.pos === pos)
+      .sort((a, b) => (b.epNext ?? -1) - (a.epNext ?? -1) || b.totalPoints - a.totalPoints)
+      .slice(0, POSITION_LIMIT);
+  }
+
+  return {
+    currentGw: bootstrap.events.current,
+    byPosition,
   };
 }
