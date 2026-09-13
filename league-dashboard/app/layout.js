@@ -1,4 +1,5 @@
 import { Oswald, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import NavBar from "@/components/NavBar";
 import "./globals.css";
 
 const oswald = Oswald({
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
       className={`${oswald.variable} ${plexSans.variable} ${plexMono.variable} h-full`}
     >
       <body className="min-h-full bg-pitch-bg text-ink font-body antialiased">
+        <NavBar />
         {children}
       </body>
     </html>

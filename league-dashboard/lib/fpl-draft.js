@@ -140,3 +140,50 @@ export async function getDraftDashboard() {
     hasLineupOrder: Boolean(picks?.picks),
   };
 }
+
+/**
+ * Head-to-head matchups for the current (or most recently started)
+ * gameweek, with team/manager names resolved and each entry's live
+ * total flagged against its official league_entry_X_points snapshot
+ * (which only updates once the match is finished).
+ */
+export async function getMatchups() {
+  const [bootstrap, league] = await Promise.all([
+    fetchJson(`${DRAFT_API}/bootstrap-static`),
+    fetchJson(`${DRAFT_API}/league/${LEAGUE_ID}/details`),
+  ]);
+
+  const entries = new Map(league.league_entries.map((e) => [e.id, e]));
+  const currentEvent = bootstrap.events.current;
+
+  const teamInfo = (leagueEntryId) => {
+    const entry = entries.get(leagueEntryId);
+    return {
+      entryId: entry?.entry_id ?? null,
+      teamName: entry?.entry_name || `Autopick (${entry?.short_name ?? "?"})`,
+      manager: entry?.player_first_name
+        ? `${entry.player_first_name} ${entry.player_last_name}`
+        : "—",
+    };
+  };
+
+  const matches = league.matches
+    .filter((m) => m.event === currentEvent)
+    .map((m) => ({
+      team1: { ...teamInfo(m.league_entry_1), points: m.league_entry_1_points },
+      team2: { ...teamInfo(m.league_entry_2), points: m.league_entry_2_points },
+      started: m.started,
+      finished: m.finished,
+      involvesMe:
+        entries.get(m.league_entry_1)?.entry_id === MY_ENTRY_ID ||
+        entries.get(m.league_entry_2)?.entry_id === MY_ENTRY_ID,
+    }));
+
+  matches.sort((a, b) => (b.involvesMe ? 1 : 0) - (a.involvesMe ? 1 : 0));
+
+  return {
+    leagueName: league.league.name,
+    currentGw: currentEvent,
+    matches,
+  };
+}
