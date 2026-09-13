@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getMatchups } from "@/lib/fpl-draft";
 
 function StatusBadge({ started, finished }) {
@@ -25,8 +26,16 @@ function StatusBadge({ started, finished }) {
 
 function TeamSide({ team, points, winning, align }) {
   return (
-    <div className={`flex flex-1 flex-col ${align === "right" ? "items-end text-right" : "items-start text-left"}`}>
-      <span className={`text-base font-semibold ${winning ? "text-ink" : "text-ink-dim"}`}>
+    <div
+      className={`flex min-w-0 flex-1 flex-col ${
+        align === "right" ? "items-end text-right" : "items-start text-left"
+      }`}
+    >
+      <span
+        className={`w-full break-words text-base font-semibold ${
+          winning ? "text-ink" : "text-ink-dim"
+        }`}
+      >
         {team.teamName}
       </span>
       <span className="text-[11px] text-ink-dim">{team.manager}</span>
@@ -40,8 +49,9 @@ function MatchCard({ match }) {
   const team2Winning = started && team2.points > team1.points;
 
   return (
-    <div
-      className={`rounded-md border bg-pitch-surface p-5 shadow-lg ${
+    <Link
+      href={`/matchups/${team1.entryId}-${team2.entryId}`}
+      className={`block rounded-md border bg-pitch-surface p-5 shadow-lg transition-colors hover:bg-pitch-surface2 ${
         involvesMe ? "border-gold/70 shadow-[0_0_0_1px_rgba(242,181,68,0.3)]" : "border-pitch-border"
       }`}
     >
@@ -66,7 +76,7 @@ function MatchCard({ match }) {
         </div>
         <TeamSide team={team2} points={team2.points} winning={team2Winning} align="right" />
       </div>
-    </div>
+    </Link>
   );
 }
 
