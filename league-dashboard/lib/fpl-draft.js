@@ -325,3 +325,65 @@ export async function getFreeAgents() {
     byPosition,
   };
 }
+
+const COPILOT_API = "https://api.fplcopilot.com/api";
+const RANKINGS_LIMIT = 25;
+
+/**
+ * Rest-of-season rankings sourced from FPL Copilot's public (no-auth)
+ * expected-points API, which projects an 8-gameweek rolling window per
+ * player - something neither the draft nor classic FPL API provides.
+ * Cross-referenced with league ownership by the shared player `code`.
+ */
+export async function getSeasonRankings() {
+  const ref = await getSharedRefData();
+  const { elements, entries } = ref;
+
+  const entryByEntryId = new Map(
+    ref.league.league_entries
+      .filter((e) => e.entry_id)
+      .map((e) => [e.entry_id, e])
+  );
+  const elementByCode = new Map(
+    Array.from(elements.values()).map((el) => [el.code, el])
+  );
+
+  const [copilotPlayers, meta] = await Promise.all([
+    fetchJson(`${COPILOT_API}/expected-points?window=8`),
+    fetchJson(`${COPILOT_API}/expected-points/meta`),
+  ]);
+
+  const players = copilotPlayers.map((p) => {
+    const el = elementByCode.get(p.fpl_code);
+    const ownerEntryId = el ? ref.ownerByElement.get(el.id) : null;
+    const ownerEntry = ownerEntryId ? entryByEntryId.get(ownerEntryId) : null;
+
+    return {
+      id: p.id,
+      name: p.name,
+      // FPL Copilot's own position labels don't match FPL's GKP/DEF/MID/FWD.
+      pos: p.position === "GK" ? "GKP" : p.position,
+      team: p.team,
+      price: p.price,
+      nextGwPoints: p.gameweeks[0]?.points ?? null,
+      rosPoints: p.total_points,
+      ownerTeamName: ownerEntry?.entry_name ?? null,
+      isMine: ownerEntryId === MY_ENTRY_ID,
+    };
+  });
+
+  const byPosition = {};
+  for (const pos of ["GKP", "DEF", "MID", "FWD"]) {
+    byPosition[pos] = players
+      .filter((p) => p.pos === pos)
+      .sort((a, b) => b.rosPoints - a.rosPoints)
+      .slice(0, RANKINGS_LIMIT);
+  }
+
+  return {
+    nextGw: meta.next_gw,
+    windowGws: meta.gameweeks.filter((gw) => gw >= meta.next_gw).slice(0, 8),
+    lastUpdated: meta.last_updated,
+    byPosition,
+  };
+}

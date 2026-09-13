@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/", label: "Standings & Squad" },
   { href: "/matchups", label: "Matchups" },
   { href: "/free-agents", label: "Free Agents" },
+  { href: "/rankings", label: "Season Rankings" },
 ];
 
 export default function NavBar() {
