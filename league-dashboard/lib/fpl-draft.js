@@ -203,7 +203,7 @@ export async function getDraftDashboard() {
   const standings = league.standings.map((s) => {
     const entry = entries.get(s.league_entry);
     return {
-      entryId: s.league_entry,
+      entryId: entry?.entry_id ?? null,
       teamName: entry?.entry_name || `Autopick (${entry?.short_name ?? "?"})`,
       manager: entry?.player_first_name
         ? `${entry.player_first_name} ${entry.player_last_name}`
@@ -656,5 +656,104 @@ export async function getStartSitSuggestions() {
     currentTotal,
     optimalTotal,
     gain: optimalTotal - currentTotal,
+  };
+}
+
+/**
+ * A single other team's roster, for the "click a team, see their squad"
+ * link off the standings table.
+ */
+export async function getTeamRoster(entryId) {
+  const ref = await getSharedRefData();
+  const { league, currentEvent } = ref;
+
+  const entry = league.league_entries.find((e) => e.entry_id === entryId);
+  if (!entry) return null;
+
+  const { roster, hasLineupOrder } = await buildRoster(entryId, currentEvent, ref);
+
+  return {
+    leagueName: league.league.name,
+    teamName: entry.entry_name || `Autopick (${entry.short_name ?? "?"})`,
+    manager: entry.player_first_name
+      ? `${entry.player_first_name} ${entry.player_last_name}`
+      : "—",
+    currentGw: currentEvent,
+    roster,
+    hasLineupOrder,
+  };
+}
+
+const OPTIMIZER_CANDIDATES_PER_POS = 5;
+
+/**
+ * Ranks every plausible waiver swap (drop one of your 15, add a free
+ * agent at the same position) by rest-of-season gain, pairing your
+ * Nth-weakest player at a position against the Nth-best free agent
+ * there. Sorted globally, so "your best plan for K moves" is just the
+ * first K rows - each row uses a distinct one of your players and a
+ * distinct free agent, so there's no overlap to resolve.
+ */
+export async function getRosterOptimizer() {
+  const ref = await getSharedRefData();
+  const { currentEvent } = ref;
+
+  const copilotPlayers = await fetchJson(`${COPILOT_API}/expected-points?window=8`);
+  const rosByCode = new Map(copilotPlayers.map((p) => [p.fpl_code, p.total_points]));
+  const rosOf = (p) => (p.code != null ? (rosByCode.get(p.code) ?? 0) : 0);
+
+  const { roster: myRosterRaw } = await buildRoster(MY_ENTRY_ID, currentEvent, ref);
+  const myRoster = myRosterRaw.map((p) => ({ ...p, rosPoints: rosOf(p) }));
+
+  const freeAgents = Array.from(ref.elements.values())
+    .filter(
+      (el) =>
+        ref.ownerByElement.get(el.id) == null && FREE_AGENT_STATUSES.has(el.status)
+    )
+    .map((el) => ({
+      name: el.web_name,
+      pos: ref.positions.get(el.element_type),
+      team: ref.teams.get(el.team),
+      epNext: (() => {
+        const raw = ref.epNextByCode.get(el.code);
+        return raw != null ? Number(raw) : null;
+      })(),
+      rosPoints: rosByCode.get(el.code) ?? 0,
+    }));
+
+  const candidates = [];
+  for (const pos of ["GKP", "DEF", "MID", "FWD"]) {
+    const mine = myRoster
+      .filter((p) => p.pos === pos)
+      .sort((a, b) => a.rosPoints - b.rosPoints);
+    const agents = freeAgents
+      .filter((p) => p.pos === pos)
+      .sort((a, b) => b.rosPoints - a.rosPoints)
+      .slice(0, OPTIMIZER_CANDIDATES_PER_POS);
+
+    const n = Math.min(mine.length, agents.length);
+    for (let i = 0; i < n; i++) {
+      const gain = agents[i].rosPoints - mine[i].rosPoints;
+      if (gain <= 0) break; // mine[] is ascending, so nothing further at this rank helps either
+      candidates.push({
+        pos,
+        out: mine[i],
+        in: agents[i],
+        gain,
+      });
+    }
+  }
+
+  candidates.sort((a, b) => b.gain - a.gain);
+
+  let running = 0;
+  const moves = candidates.map((c, i) => {
+    running += c.gain;
+    return { ...c, rank: i + 1, cumulativeGain: running };
+  });
+
+  return {
+    currentGw: currentEvent,
+    moves,
   };
 }

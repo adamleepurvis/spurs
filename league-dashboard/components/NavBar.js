@@ -10,6 +10,7 @@ const DRAFT_LINKS = [
   { href: "/rankings", label: "Season Rankings" },
   { href: "/trades", label: "Trade Targets" },
   { href: "/lineup", label: "Start/Sit" },
+  { href: "/optimizer", label: "Optimizer" },
 ];
 
 const CLASSIC_LINKS = [{ href: "/classic", label: "Classic Team" }];

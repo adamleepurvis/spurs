@@ -1,5 +1,6 @@
 import { getDraftDashboard } from "@/lib/fpl-draft";
 import RosterList from "@/components/RosterList";
+import ClickableRow from "@/components/ClickableRow";
 
 function FormPips({ won, drawn, lost }) {
   return (
@@ -87,15 +88,11 @@ export default async function Page() {
               <tbody>
                 {data.standings.map((s) => {
                   const isMe = s.entryId === data.myEntryId;
-                  return (
-                    <tr
-                      key={s.entryId}
-                      className={
-                        isMe
-                          ? "bg-accent-dim/20 shadow-[inset_3px_0_0_var(--color-gold)]"
-                          : "hover:bg-pitch-surface2"
-                      }
-                    >
+                  const rowClassName = isMe
+                    ? "bg-accent-dim/20 shadow-[inset_3px_0_0_var(--color-gold)]"
+                    : "hover:bg-pitch-surface2";
+                  const cells = (
+                    <>
                       <td className="whitespace-nowrap border-b border-pitch-border px-2.5 py-2.5 font-mono text-ink-dim">
                         {s.rank}
                       </td>
@@ -117,6 +114,15 @@ export default async function Page() {
                       <td className="whitespace-nowrap border-b border-pitch-border px-2.5 py-2.5 text-right font-mono text-[14.5px] font-bold">
                         {s.total}
                       </td>
+                    </>
+                  );
+                  return s.entryId != null ? (
+                    <ClickableRow key={s.rank} href={`/team/${s.entryId}`} className={rowClassName}>
+                      {cells}
+                    </ClickableRow>
+                  ) : (
+                    <tr key={s.rank} className={rowClassName}>
+                      {cells}
                     </tr>
                   );
                 })}

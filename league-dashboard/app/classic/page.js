@@ -1,55 +1,9 @@
 import { getClassicDashboard } from "@/lib/fpl-classic";
-
-const POSITION_ORDER = ["GKP", "DEF", "MID", "FWD"];
-const POSITION_LABEL = {
-  GKP: "Goalkeepers",
-  DEF: "Defenders",
-  MID: "Midfielders",
-  FWD: "Forwards",
-};
-
-function PlayerRow({ p }) {
-  const flagged = p.status !== "a" || p.news;
-  const displayed = p.eventPoints * p.multiplier;
-  return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-pitch-border last:border-b-0">
-      <span className="min-w-9 rounded bg-pitch-surface2 px-1.5 py-0.5 text-center font-mono text-[10.5px] text-ink-dim">
-        {p.team}
-      </span>
-      <span className="min-w-0 flex-1 text-[13.5px] font-medium">
-        {p.name}
-        {p.isCaptain && (
-          <span className="ml-1.5 rounded bg-gold px-1 py-px text-[9.5px] font-bold text-pitch-bg">
-            C
-          </span>
-        )}
-        {p.isViceCaptain && (
-          <span className="ml-1.5 rounded bg-accent-dim px-1 py-px text-[9.5px] font-bold text-ink">
-            V
-          </span>
-        )}
-        {flagged && (
-          <span
-            title={p.news || "Fitness concern"}
-            className="ml-1.5 inline-block h-[7px] w-[7px] rounded-full bg-danger align-middle"
-          />
-        )}
-        <span className="block text-[10.5px] font-normal text-ink-dim">
-          £{p.cost.toFixed(1)}m
-        </span>
-      </span>
-      <span className="min-w-11 text-right font-mono">
-        <span className="block text-sm font-semibold">{displayed}</span>
-        <span className="block text-[10px] text-ink-dim">{p.totalPoints} tot</span>
-      </span>
-    </div>
-  );
-}
+import ClassicRosterList from "@/components/ClassicRosterList";
+import ClickableRow from "@/components/ClickableRow";
 
 export default async function ClassicPage() {
   const data = await getClassicDashboard();
-  const starters = data.roster.filter((p) => p.positionSlot <= 11);
-  const bench = data.roster.filter((p) => p.positionSlot > 11);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
@@ -130,8 +84,9 @@ export default async function ClassicPage() {
                 {data.standings.map((s) => {
                   const isMe = s.entryId === data.myEntryId;
                   return (
-                    <tr
+                    <ClickableRow
                       key={s.entryId}
+                      href={`/classic/${s.entryId}`}
                       className={
                         isMe
                           ? "bg-accent-dim/20 shadow-[inset_3px_0_0_var(--color-gold)]"
@@ -151,7 +106,7 @@ export default async function ClassicPage() {
                       <td className="whitespace-nowrap border-b border-pitch-border px-2.5 py-2.5 text-right font-mono text-[14.5px] font-bold">
                         {s.total}
                       </td>
-                    </tr>
+                    </ClickableRow>
                   );
                 })}
               </tbody>
@@ -166,30 +121,11 @@ export default async function ClassicPage() {
             </h2>
             <span className="text-xs text-ink-dim">GW{data.currentGw} points</span>
           </div>
-          {POSITION_ORDER.map((pos) => {
-            const players = starters.filter((p) => p.pos === pos);
-            if (!players.length) return null;
-            return (
-              <div key={pos} className="border-t border-pitch-border first:border-t-0">
-                <div className="bg-pitch-surface2 px-4 py-1.5 text-[10.5px] uppercase tracking-wider text-ink-dim">
-                  {POSITION_LABEL[pos]}
-                </div>
-                {players.map((p, i) => (
-                  <PlayerRow key={`${p.name}-${i}`} p={p} />
-                ))}
-              </div>
-            );
-          })}
-          {bench.length > 0 && (
-            <>
-              <div className="border-y border-pitch-border bg-pitch-surface2 px-4 py-1.5 text-[10px] uppercase tracking-widest text-ink-dim">
-                Bench
-              </div>
-              {bench.map((p, i) => (
-                <PlayerRow key={`bench-${p.name}-${i}`} p={p} />
-              ))}
-            </>
-          )}
+          <ClassicRosterList
+            roster={data.roster}
+            hasLineupOrder={data.hasLineupOrder}
+            currentGw={data.currentGw}
+          />
         </section>
       </div>
 
