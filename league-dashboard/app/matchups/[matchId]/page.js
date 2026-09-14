@@ -27,6 +27,11 @@ export default async function MatchupDetailPage({ params }) {
   const team1Winning = started && team1.points > team2.points;
   const team2Winning = started && team2.points > team1.points;
 
+  const team1Proj = team1.points + team1.remaining.points;
+  const team2Proj = team2.points + team2.remaining.points;
+  const team1ProjAhead = team1Proj > team2Proj;
+  const team2ProjAhead = team2Proj > team1Proj;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
       <Link
@@ -57,14 +62,27 @@ export default async function MatchupDetailPage({ params }) {
           <div className="min-w-0 flex-1">
             <TeamHeader team={team1} winning={team1Winning} align="left" />
           </div>
-          <div className="flex items-center gap-3 font-mono">
-            <span className={`text-4xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
-              {started ? team1.points : "–"}
-            </span>
-            <span className="text-ink-dim">&ndash;</span>
-            <span className={`text-4xl font-bold ${team2Winning ? "text-ink" : "text-ink-dim"}`}>
-              {started ? team2.points : "–"}
-            </span>
+          <div className="flex flex-col items-center gap-1.5 font-mono">
+            <div className="flex items-center gap-3">
+              <span className={`text-4xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
+                {started ? team1.points : "–"}
+              </span>
+              <span className="text-ink-dim">&ndash;</span>
+              <span className={`text-4xl font-bold ${team2Winning ? "text-ink" : "text-ink-dim"}`}>
+                {started ? team2.points : "–"}
+              </span>
+            </div>
+            {!finished && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className={team1ProjAhead ? "font-semibold text-gold" : "text-ink-dim"}>
+                  {team1Proj.toFixed(1)}
+                </span>
+                <span className="text-ink-dim">proj</span>
+                <span className={team2ProjAhead ? "font-semibold text-gold" : "text-ink-dim"}>
+                  {team2Proj.toFixed(1)}
+                </span>
+              </div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <TeamHeader team={team2} winning={team2Winning} align="right" />

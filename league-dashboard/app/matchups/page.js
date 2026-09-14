@@ -51,6 +51,11 @@ function MatchCard({ match }) {
   const team1Winning = started && team1.points > team2.points;
   const team2Winning = started && team2.points > team1.points;
 
+  const team1Proj = team1.points + team1.remaining.points;
+  const team2Proj = team2.points + team2.remaining.points;
+  const team1ProjAhead = team1Proj > team2Proj;
+  const team2ProjAhead = team2Proj > team1Proj;
+
   return (
     <Link
       href={`/matchups/${team1.entryId}-${team2.entryId}`}
@@ -68,14 +73,27 @@ function MatchCard({ match }) {
       </div>
       <div className="flex items-center gap-4">
         <TeamSide team={team1} points={team1.points} winning={team1Winning} align="left" />
-        <div className="flex items-center gap-3 font-mono">
-          <span className={`text-3xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
-            {started ? team1.points : "–"}
-          </span>
-          <span className="text-sm text-ink-dim">&ndash;</span>
-          <span className={`text-3xl font-bold ${team2Winning ? "text-ink" : "text-ink-dim"}`}>
-            {started ? team2.points : "–"}
-          </span>
+        <div className="flex flex-col items-center gap-1.5 font-mono">
+          <div className="flex items-center gap-3">
+            <span className={`text-3xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
+              {started ? team1.points : "–"}
+            </span>
+            <span className="text-sm text-ink-dim">&ndash;</span>
+            <span className={`text-3xl font-bold ${team2Winning ? "text-ink" : "text-ink-dim"}`}>
+              {started ? team2.points : "–"}
+            </span>
+          </div>
+          {!finished && (
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className={team1ProjAhead ? "font-semibold text-gold" : "text-ink-dim"}>
+                {team1Proj.toFixed(1)}
+              </span>
+              <span className="text-ink-dim">proj</span>
+              <span className={team2ProjAhead ? "font-semibold text-gold" : "text-ink-dim"}>
+                {team2Proj.toFixed(1)}
+              </span>
+            </div>
+          )}
         </div>
         <TeamSide team={team2} points={team2.points} winning={team2Winning} align="right" />
       </div>
