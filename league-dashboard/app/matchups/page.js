@@ -55,6 +55,8 @@ function MatchCard({ match }) {
   const team2Proj = team2.points + team2.remaining.points;
   const team1ProjAhead = team1Proj > team2Proj;
   const team2ProjAhead = team2Proj > team1Proj;
+  const team1ExpAhead = team1.expectedTotal > team2.expectedTotal;
+  const team2ExpAhead = team2.expectedTotal > team1.expectedTotal;
 
   return (
     <Link
@@ -74,6 +76,15 @@ function MatchCard({ match }) {
       <div className="flex items-center gap-4">
         <TeamSide team={team1} points={team1.points} winning={team1Winning} align="left" />
         <div className="flex flex-col items-center gap-1.5 font-mono">
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className={team1ExpAhead ? "font-semibold text-ink" : "text-ink-dim"}>
+              {team1.expectedTotal.toFixed(1)}
+            </span>
+            <span className="text-ink-dim">exp</span>
+            <span className={team2ExpAhead ? "font-semibold text-ink" : "text-ink-dim"}>
+              {team2.expectedTotal.toFixed(1)}
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <span className={`text-3xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
               {started ? team1.points : "–"}

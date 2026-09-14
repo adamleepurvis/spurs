@@ -31,6 +31,8 @@ export default async function MatchupDetailPage({ params }) {
   const team2Proj = team2.points + team2.remaining.points;
   const team1ProjAhead = team1Proj > team2Proj;
   const team2ProjAhead = team2Proj > team1Proj;
+  const team1ExpAhead = team1.expectedTotal > team2.expectedTotal;
+  const team2ExpAhead = team2.expectedTotal > team1.expectedTotal;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
@@ -63,6 +65,15 @@ export default async function MatchupDetailPage({ params }) {
             <TeamHeader team={team1} winning={team1Winning} align="left" />
           </div>
           <div className="flex flex-col items-center gap-1.5 font-mono">
+            <div className="flex items-center gap-2 text-xs">
+              <span className={team1ExpAhead ? "font-semibold text-ink" : "text-ink-dim"}>
+                {team1.expectedTotal.toFixed(1)}
+              </span>
+              <span className="text-ink-dim">exp</span>
+              <span className={team2ExpAhead ? "font-semibold text-ink" : "text-ink-dim"}>
+                {team2.expectedTotal.toFixed(1)}
+              </span>
+            </div>
             <div className="flex items-center gap-3">
               <span className={`text-4xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
                 {started ? team1.points : "–"}

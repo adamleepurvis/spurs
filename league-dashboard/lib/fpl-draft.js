@@ -147,6 +147,18 @@ function summarizeRemaining(roster, hasLineupOrder) {
   };
 }
 
+/**
+ * The pregame baseline: sum of every starter's expected points for the
+ * gameweek, regardless of whether they've since played. Fixed for the
+ * whole gameweek, unlike the live score or the "remaining" projection.
+ */
+function sumExpectedPoints(roster, hasLineupOrder) {
+  const relevant = hasLineupOrder
+    ? roster.filter((p) => p.positionSlot <= 11)
+    : roster;
+  return relevant.reduce((sum, p) => sum + (p.epNext ?? 0), 0);
+}
+
 async function getSharedRefData() {
   const [bootstrap, league, elementStatus] = await Promise.all([
     fetchJson(`${DRAFT_API}/bootstrap-static`),
@@ -250,9 +262,16 @@ export async function getMatchups() {
 
   const withRemaining = async (leagueEntryId, points) => {
     const info = teamInfo(leagueEntryId);
-    if (!info.entryId) return { ...info, points, remaining: { count: 0, points: 0 } };
+    if (!info.entryId) {
+      return { ...info, points, remaining: { count: 0, points: 0 }, expectedTotal: 0 };
+    }
     const { roster, hasLineupOrder } = await buildRoster(info.entryId, currentEvent, ref);
-    return { ...info, points, remaining: summarizeRemaining(roster, hasLineupOrder) };
+    return {
+      ...info,
+      points,
+      remaining: summarizeRemaining(roster, hasLineupOrder),
+      expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
+    };
   };
 
   const relevantMatches = league.matches.filter((m) => m.event === currentEvent);
@@ -320,6 +339,7 @@ export async function getMatchupDetail(entryIdA, entryIdB) {
       roster,
       hasLineupOrder,
       remaining: summarizeRemaining(roster, hasLineupOrder),
+      expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
     };
   };
 
