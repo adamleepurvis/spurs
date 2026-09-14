@@ -4,19 +4,50 @@ const CLASSIC_API = "https://fantasy.premierleague.com/api";
 export const LEAGUE_ID = process.env.FPL_DRAFT_LEAGUE_ID ?? "42004";
 export const MY_ENTRY_ID = Number(process.env.FPL_DRAFT_ENTRY_ID ?? "261801");
 
-async function fetchJson(url) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`${url} -> ${res.status}`);
+const FETCH_TIMEOUT_MS = 8000;
+const FETCH_RETRIES = 2;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithTimeout(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { cache: "no-store", signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json();
+}
+
+/**
+ * The FPL APIs (all unofficial) occasionally blip - a timeout, a
+ * one-off 5xx, a dropped connection - from Vercel's network even when
+ * they're perfectly healthy from elsewhere. Retry a couple of times
+ * before giving up rather than failing the whole page on one bad beat.
+ */
+async function fetchJson(url) {
+  let lastError;
+  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url);
+      if (!res.ok) {
+        lastError = new Error(`${url} -> ${res.status}`);
+      } else {
+        return await res.json();
+      }
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < FETCH_RETRIES) await sleep(300 * (attempt + 1));
+  }
+  throw lastError;
 }
 
 async function tryFetchJson(url) {
   try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    return await res.json();
+    return await fetchJson(url);
   } catch {
     return null;
   }
