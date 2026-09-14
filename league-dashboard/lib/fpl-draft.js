@@ -36,16 +36,54 @@ function formatDeadline(iso) {
   });
 }
 
-function mapElementsForRoster(picksOrElements, isRealPicks, elements, teams, positions) {
+/**
+ * team_id -> { opponentTeamId, isHome, started, finished } for one
+ * gameweek. Uses the classic FPL API since the draft API's own
+ * bootstrap.fixtures drops a gameweek once it becomes current.
+ */
+async function getFixtureMapForGw(gw) {
+  const fixtures = await fetchJson(`${CLASSIC_API}/fixtures/?event=${gw}`);
+  const map = new Map();
+  for (const f of fixtures) {
+    map.set(f.team_h, {
+      opponentTeamId: f.team_a,
+      isHome: true,
+      started: f.started,
+      finished: f.finished,
+    });
+    map.set(f.team_a, {
+      opponentTeamId: f.team_h,
+      isHome: false,
+      started: f.started,
+      finished: f.finished,
+    });
+  }
+  return map;
+}
+
+function enrichPlayer(el, { teams, fixtureMap, epNextByCode }) {
+  const fixture = fixtureMap.get(el.team);
+  const epNextRaw = epNextByCode.get(el.code);
+  return {
+    team: teams.get(el.team),
+    opponentTeam: fixture ? teams.get(fixture.opponentTeamId) : null,
+    opponentIsHome: fixture?.isHome ?? null,
+    fixtureStarted: fixture?.started ?? null,
+    fixtureFinished: fixture?.finished ?? null,
+    epNext: epNextRaw != null ? Number(epNextRaw) : null,
+  };
+}
+
+function mapElementsForRoster(picksOrElements, isRealPicks, ref) {
+  const { elements, positions } = ref;
   if (isRealPicks) {
     return picksOrElements.map((p) => {
       const el = elements.get(p.element);
       return {
         name: el.web_name,
         pos: positions.get(el.element_type),
-        team: teams.get(el.team),
+        ...enrichPlayer(el, ref),
         eventPoints: el.event_points,
-        totalPoints: el.total_points,
         status: el.status,
         news: el.news,
         isCaptain: p.is_captain,
@@ -57,9 +95,8 @@ function mapElementsForRoster(picksOrElements, isRealPicks, elements, teams, pos
   return picksOrElements.map((el) => ({
     name: el.web_name,
     pos: positions.get(el.element_type),
-    team: teams.get(el.team),
+    ...enrichPlayer(el, ref),
     eventPoints: el.event_points,
-    totalPoints: el.total_points,
     status: el.status,
     news: el.news,
     isCaptain: false,
@@ -75,23 +112,39 @@ function mapElementsForRoster(picksOrElements, isRealPicks, elements, teams, pos
  * where a gameweek's picks haven't published yet even though it's
  * flagged "current".
  */
-async function buildRoster(entryId, currentEvent, { elements, teams, positions, ownerByElement }) {
+async function buildRoster(entryId, currentEvent, ref) {
   const picks =
     (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent}`)) ??
     (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent - 1}`));
 
   const hasLineupOrder = Boolean(picks?.picks);
   const roster = hasLineupOrder
-    ? mapElementsForRoster(picks.picks, true, elements, teams, positions)
+    ? mapElementsForRoster(picks.picks, true, ref)
     : mapElementsForRoster(
-        Array.from(elements.values()).filter((el) => ownerByElement.get(el.id) === entryId),
+        Array.from(ref.elements.values()).filter(
+          (el) => ref.ownerByElement.get(el.id) === entryId
+        ),
         false,
-        elements,
-        teams,
-        positions
+        ref
       );
 
   return { roster, hasLineupOrder };
+}
+
+/**
+ * A roster's "remaining" upside: among starters (or the full squad when
+ * lineup order isn't published yet), how many haven't kicked off yet
+ * this gameweek, and how many expected points are still on the pitch.
+ */
+function summarizeRemaining(roster, hasLineupOrder) {
+  const relevant = hasLineupOrder
+    ? roster.filter((p) => p.positionSlot <= 11)
+    : roster;
+  const remaining = relevant.filter((p) => p.fixtureStarted === false);
+  return {
+    count: remaining.length,
+    points: remaining.reduce((sum, p) => sum + (p.epNext ?? 0), 0),
+  };
 }
 
 async function getSharedRefData() {
@@ -101,9 +154,18 @@ async function getSharedRefData() {
     fetchJson(`${DRAFT_API}/league/${LEAGUE_ID}/element-status`),
   ]);
 
+  const currentEvent = bootstrap.events.current;
+  const [fixtureMap, classicBootstrap] = await Promise.all([
+    getFixtureMapForGw(currentEvent),
+    fetchJson(`${CLASSIC_API}/bootstrap-static/`),
+  ]);
+
   return {
     bootstrap,
     league,
+    currentEvent,
+    fixtureMap,
+    epNextByCode: new Map(classicBootstrap.elements.map((e) => [e.code, e.ep_next])),
     elements: new Map(bootstrap.elements.map((e) => [e.id, e])),
     teams: new Map(bootstrap.teams.map((t) => [t.id, t.short_name])),
     positions: new Map(bootstrap.element_types.map((t) => [t.id, t.singular_name_short])),
@@ -118,9 +180,8 @@ async function getSharedRefData() {
  */
 export async function getDraftDashboard() {
   const ref = await getSharedRefData();
-  const { bootstrap, league, entries } = ref;
+  const { bootstrap, league, entries, currentEvent } = ref;
 
-  const currentEvent = bootstrap.events.current;
   const now = Date.now();
   const nextEvent = bootstrap.events.data.find(
     (e) => new Date(e.deadline_time).getTime() > now
@@ -166,18 +227,15 @@ export async function getDraftDashboard() {
 
 /**
  * Head-to-head matchups for the current (or most recently started)
- * gameweek, with team/manager names resolved and each entry's live
- * total flagged against its official league_entry_X_points snapshot
- * (which only updates once the match is finished).
+ * gameweek, with team/manager names resolved, each entry's live total
+ * flagged against its official league_entry_X_points snapshot (which
+ * only updates once the match is finished), and each side's "remaining"
+ * upside - how many starters haven't kicked off yet and how many
+ * expected points are still on the pitch for them.
  */
 export async function getMatchups() {
-  const [bootstrap, league] = await Promise.all([
-    fetchJson(`${DRAFT_API}/bootstrap-static`),
-    fetchJson(`${DRAFT_API}/league/${LEAGUE_ID}/details`),
-  ]);
-
-  const entries = new Map(league.league_entries.map((e) => [e.id, e]));
-  const currentEvent = bootstrap.events.current;
+  const ref = await getSharedRefData();
+  const { league, entries, currentEvent } = ref;
 
   const teamInfo = (leagueEntryId) => {
     const entry = entries.get(leagueEntryId);
@@ -190,17 +248,32 @@ export async function getMatchups() {
     };
   };
 
-  const matches = league.matches
-    .filter((m) => m.event === currentEvent)
-    .map((m) => ({
-      team1: { ...teamInfo(m.league_entry_1), points: m.league_entry_1_points },
-      team2: { ...teamInfo(m.league_entry_2), points: m.league_entry_2_points },
-      started: m.started,
-      finished: m.finished,
-      involvesMe:
-        entries.get(m.league_entry_1)?.entry_id === MY_ENTRY_ID ||
-        entries.get(m.league_entry_2)?.entry_id === MY_ENTRY_ID,
-    }));
+  const withRemaining = async (leagueEntryId, points) => {
+    const info = teamInfo(leagueEntryId);
+    if (!info.entryId) return { ...info, points, remaining: { count: 0, points: 0 } };
+    const { roster, hasLineupOrder } = await buildRoster(info.entryId, currentEvent, ref);
+    return { ...info, points, remaining: summarizeRemaining(roster, hasLineupOrder) };
+  };
+
+  const relevantMatches = league.matches.filter((m) => m.event === currentEvent);
+
+  const matches = await Promise.all(
+    relevantMatches.map(async (m) => {
+      const [team1, team2] = await Promise.all([
+        withRemaining(m.league_entry_1, m.league_entry_1_points),
+        withRemaining(m.league_entry_2, m.league_entry_2_points),
+      ]);
+      return {
+        team1,
+        team2,
+        started: m.started,
+        finished: m.finished,
+        involvesMe:
+          entries.get(m.league_entry_1)?.entry_id === MY_ENTRY_ID ||
+          entries.get(m.league_entry_2)?.entry_id === MY_ENTRY_ID,
+      };
+    })
+  );
 
   matches.sort((a, b) => (b.involvesMe ? 1 : 0) - (a.involvesMe ? 1 : 0));
 
@@ -217,8 +290,7 @@ export async function getMatchups() {
  */
 export async function getMatchupDetail(entryIdA, entryIdB) {
   const ref = await getSharedRefData();
-  const { bootstrap, league, entries } = ref;
-  const currentEvent = bootstrap.events.current;
+  const { league, entries, currentEvent } = ref;
 
   const match = league.matches.find((m) => {
     if (m.event !== currentEvent) return false;
@@ -247,6 +319,7 @@ export async function getMatchupDetail(entryIdA, entryIdB) {
       points,
       roster,
       hasLineupOrder,
+      remaining: summarizeRemaining(roster, hasLineupOrder),
     };
   };
 

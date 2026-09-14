@@ -39,6 +39,9 @@ function TeamSide({ team, points, winning, align }) {
         {team.teamName}
       </span>
       <span className="text-[11px] text-ink-dim">{team.manager}</span>
+      <span className="mt-1 text-[10.5px] text-ink-dim">
+        {team.remaining.count} remaining ({team.remaining.points.toFixed(1)})
+      </span>
     </div>
   );
 }

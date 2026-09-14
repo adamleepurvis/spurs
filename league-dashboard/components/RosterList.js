@@ -8,6 +8,8 @@ const POSITION_LABEL = {
 
 function PlayerRow({ p }) {
   const flagged = p.status !== "a" || p.news;
+  const played = p.fixtureStarted === true;
+
   return (
     <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-pitch-border last:border-b-0">
       <span className="min-w-9 rounded bg-pitch-surface2 px-1.5 py-0.5 text-center font-mono text-[10.5px] text-ink-dim">
@@ -31,11 +33,20 @@ function PlayerRow({ p }) {
             className="ml-1.5 inline-block h-[7px] w-[7px] rounded-full bg-danger align-middle"
           />
         )}
+        {p.opponentTeam && (
+          <span className="block text-[10.5px] font-normal text-ink-dim">
+            vs {p.opponentTeam} ({p.opponentIsHome ? "H" : "A"})
+          </span>
+        )}
       </span>
-      <span className="min-w-11 text-right font-mono">
-        <span className="block text-sm font-semibold">{p.eventPoints}</span>
+      <span className="min-w-16 text-right font-mono">
+        {played ? (
+          <span className="block text-sm font-semibold">{p.eventPoints}</span>
+        ) : (
+          <span className="block text-[11px] italic text-ink-dim">Yet to play</span>
+        )}
         <span className="block text-[10px] text-ink-dim">
-          {p.totalPoints} tot
+          {p.epNext != null ? p.epNext.toFixed(1) : "—"} xPts
         </span>
       </span>
     </div>
