@@ -65,6 +65,7 @@ function enrichPlayer(el, { teams, fixtureMap, epNextByCode }) {
   const fixture = fixtureMap.get(el.team);
   const epNextRaw = epNextByCode.get(el.code);
   return {
+    code: el.code,
     team: teams.get(el.team),
     opponentTeam: fixture ? teams.get(fixture.opponentTeamId) : null,
     opponentIsHome: fixture?.isHome ?? null,
@@ -420,7 +421,7 @@ export async function getFreeAgents() {
 }
 
 const COPILOT_API = "https://api.fplcopilot.com/api";
-const RANKINGS_LIMIT = 25;
+const RANKINGS_LIMIT = 50;
 
 /**
  * Rest-of-season rankings sourced from FPL Copilot's public (no-auth)
@@ -477,6 +478,117 @@ export async function getSeasonRankings() {
     nextGw: meta.next_gw,
     windowGws: meta.gameweeks.filter((gw) => gw >= meta.next_gw).slice(0, 8),
     lastUpdated: meta.last_updated,
+    byPosition,
+  };
+}
+
+const TRADE_TARGET_LIMIT = 8;
+
+/**
+ * Trade targets: players buried on another manager's bench whose
+ * rest-of-season projection beats one of your own starters at the
+ * same position. A bench player is scoring nothing for its owner, so
+ * this is upside they may not be attached to - paired with a guess at
+ * what they'd want back, based on their own weakest starting position.
+ */
+export async function getTradeTargets() {
+  const ref = await getSharedRefData();
+  const { currentEvent } = ref;
+
+  const copilotPlayers = await fetchJson(`${COPILOT_API}/expected-points?window=8`);
+  const rosByCode = new Map(copilotPlayers.map((p) => [p.fpl_code, p.total_points]));
+  const rosOf = (p) => (p.code != null ? (rosByCode.get(p.code) ?? 0) : 0);
+  const withRos = (roster) => roster.map((p) => ({ ...p, rosPoints: rosOf(p) }));
+
+  const { roster: myRosterRaw, hasLineupOrder: myHasLineup } = await buildRoster(
+    MY_ENTRY_ID,
+    currentEvent,
+    ref
+  );
+  const myRoster = withRos(myRosterRaw);
+  const myStarters = myHasLineup ? myRoster.filter((p) => p.positionSlot <= 11) : myRoster;
+  const myBench = myHasLineup ? myRoster.filter((p) => p.positionSlot > 11) : [];
+
+  const myWeakestByPos = {};
+  for (const pos of ["GKP", "DEF", "MID", "FWD"]) {
+    const atPos = myStarters.filter((p) => p.pos === pos);
+    if (!atPos.length) continue;
+    myWeakestByPos[pos] = atPos.reduce((min, p) => (p.rosPoints < min.rosPoints ? p : min));
+  }
+  const myBenchByPos = {};
+  for (const p of myBench) {
+    if (!myBenchByPos[p.pos] || p.rosPoints > myBenchByPos[p.pos].rosPoints) {
+      myBenchByPos[p.pos] = p;
+    }
+  }
+
+  const otherEntries = ref.league.league_entries.filter(
+    (e) => e.entry_id && e.entry_id !== MY_ENTRY_ID
+  );
+
+  const candidates = [];
+  let skippedTeams = 0;
+
+  await Promise.all(
+    otherEntries.map(async (entry) => {
+      const { roster: theirRosterRaw, hasLineupOrder: theirHasLineup } = await buildRoster(
+        entry.entry_id,
+        currentEvent,
+        ref
+      );
+      if (!theirHasLineup) {
+        skippedTeams += 1;
+        return;
+      }
+      const theirRoster = withRos(theirRosterRaw);
+      const theirStarters = theirRoster.filter((p) => p.positionSlot <= 11);
+      const theirBench = theirRoster.filter((p) => p.positionSlot > 11);
+
+      let theirWeakest = null;
+      for (const p of theirStarters) {
+        if (!theirWeakest || p.rosPoints < theirWeakest.rosPoints) theirWeakest = p;
+      }
+
+      const ownerTeamName =
+        entry.entry_name || `Autopick (${entry.short_name ?? "?"})`;
+
+      for (const benchPlayer of theirBench) {
+        const myWeak = myWeakestByPos[benchPlayer.pos];
+        if (!myWeak || benchPlayer.rosPoints <= myWeak.rosPoints) continue;
+
+        candidates.push({
+          name: benchPlayer.name,
+          team: benchPlayer.team,
+          pos: benchPlayer.pos,
+          rosPoints: benchPlayer.rosPoints,
+          ownerTeamName,
+          replacesName: myWeak.name,
+          replacesRos: myWeak.rosPoints,
+          delta: benchPlayer.rosPoints - myWeak.rosPoints,
+          theirWeakPos: theirWeakest?.pos ?? null,
+          theirWeakName: theirWeakest?.name ?? null,
+          theirWeakRos: theirWeakest?.rosPoints ?? null,
+          suggestedOffer: theirWeakest
+            ? (myBenchByPos[theirWeakest.pos]?.name ?? null)
+            : null,
+        });
+      }
+    })
+  );
+
+  candidates.sort((a, b) => b.delta - a.delta);
+
+  const byPosition = {};
+  for (const pos of ["GKP", "DEF", "MID", "FWD"]) {
+    byPosition[pos] = candidates
+      .filter((c) => c.pos === pos)
+      .slice(0, TRADE_TARGET_LIMIT);
+  }
+
+  return {
+    currentGw: currentEvent,
+    myHasLineup,
+    skippedTeams,
     byPosition,
   };
 }

@@ -75,7 +75,7 @@ export default async function RankingsPage() {
             Season Rankings
           </h1>
           <p className="mt-1.5 text-sm text-ink-dim">
-            Top 25 per position, ranked by {gwRangeLabel} projected total
+            Top 50 per position, ranked by {gwRangeLabel} projected total
           </p>
         </div>
         <span className="text-right text-[11px] text-ink-dim">
