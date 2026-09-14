@@ -137,3 +137,127 @@ export async function getClassicTeamRoster(entryId) {
     hasLineupOrder: Boolean(picks?.picks?.length),
   };
 }
+
+const COPILOT_API = "https://api.fplcopilot.com/api";
+const CLUB_LIMIT = 3;
+
+/**
+ * Ranks the best legal transfer for each of your 15 players by
+ * rest-of-season gain: same position, affordable with that player's
+ * own sale price plus your current bank, and not pushing any club over
+ * the 3-players-per-team cap. Sorted globally, so row N is your
+ * optimal plan for exactly N transfers (each swap uses a distinct one
+ * of your players, so there's no overlap between rows).
+ *
+ * Two simplifications worth knowing: sale price is approximated as
+ * current market price (the exact sell-on price after profit clawback
+ * isn't available without being logged in as this entry), and each
+ * swap's budget is figured independently - pooling proceeds from
+ * multiple sales into one bigger upgrade isn't modeled.
+ */
+export async function getClassicRosterOptimizer() {
+  const ref = await getClassicRefData();
+  const { currentGw, elements, teams, positions } = ref;
+
+  const [picks, copilotPlayers] = await Promise.all([
+    currentGw
+      ? tryFetchJson(`${CLASSIC_API}/entry/${CLASSIC_ENTRY_ID}/event/${currentGw}/picks/`)
+      : null,
+    fetchJson(`${COPILOT_API}/expected-points?window=8`),
+  ]);
+
+  const rosByCode = new Map(copilotPlayers.map((p) => [p.fpl_code, p.total_points]));
+  const rosOf = (el) => rosByCode.get(el.code) ?? 0;
+
+  const myPicks = picks?.picks ?? [];
+  const myElementIds = new Set(myPicks.map((p) => p.element));
+  const bank = (picks?.entry_history?.bank ?? 0) / 10;
+
+  const clubCounts = new Map();
+  for (const p of myPicks) {
+    const el = elements.get(p.element);
+    clubCounts.set(el.team, (clubCounts.get(el.team) ?? 0) + 1);
+  }
+
+  const myRoster = myPicks.map((p) => {
+    const el = elements.get(p.element);
+    return {
+      pos: positions.get(el.element_type),
+      teamId: el.team,
+      name: el.web_name,
+      team: teams.get(el.team),
+      cost: el.now_cost / 10,
+      epNext: el.ep_next != null ? Number(el.ep_next) : null,
+      rosPoints: rosOf(el),
+    };
+  });
+
+  const candidatesByPos = { GKP: [], DEF: [], MID: [], FWD: [] };
+  for (const el of elements.values()) {
+    if (myElementIds.has(el.id)) continue;
+    if (el.status !== "a" && el.status !== "d") continue;
+    candidatesByPos[positions.get(el.element_type)].push(el);
+  }
+  for (const pos in candidatesByPos) {
+    candidatesByPos[pos].sort((a, b) => rosOf(b) - rosOf(a));
+  }
+
+  // Greedily commit the single best (out, candidate) pair available at
+  // each step, then remove both from further consideration - otherwise
+  // two different weak players could both "want" the same replacement,
+  // producing a ranked list that isn't actually executable as a set.
+  const usedCandidateIds = new Set();
+  let remainingOut = myRoster;
+  const moves = [];
+
+  const findBestFor = (out) => {
+    const budget = out.cost + bank;
+    return candidatesByPos[out.pos].find((el) => {
+      if (usedCandidateIds.has(el.id)) return false;
+      if (el.now_cost / 10 > budget + 1e-9) return false;
+      const countExcludingOut =
+        (clubCounts.get(el.team) ?? 0) - (el.team === out.teamId ? 1 : 0);
+      return countExcludingOut + 1 <= CLUB_LIMIT;
+    });
+  };
+
+  while (remainingOut.length > 0) {
+    let choice = null; // { out, candidate, gain }
+    for (const out of remainingOut) {
+      const candidate = findBestFor(out);
+      if (!candidate) continue;
+      const gain = rosOf(candidate) - out.rosPoints;
+      if (gain <= 0) continue;
+      if (!choice || gain > choice.gain) choice = { out, candidate, gain };
+    }
+    if (!choice) break;
+
+    const { out, candidate, gain } = choice;
+    usedCandidateIds.add(candidate.id);
+    clubCounts.set(out.teamId, (clubCounts.get(out.teamId) ?? 1) - 1);
+    clubCounts.set(candidate.team, (clubCounts.get(candidate.team) ?? 0) + 1);
+    remainingOut = remainingOut.filter((p) => p !== out);
+
+    moves.push({
+      pos: out.pos,
+      out,
+      in: {
+        name: candidate.web_name,
+        team: teams.get(candidate.team),
+        cost: candidate.now_cost / 10,
+        epNext: candidate.ep_next != null ? Number(candidate.ep_next) : null,
+        rosPoints: rosOf(candidate),
+      },
+      costDelta: candidate.now_cost / 10 - out.cost,
+      gain,
+    });
+  }
+
+  let running = 0;
+  const ranked = moves.map((m, i) => {
+    running += m.gain;
+    return { ...m, rank: i + 1, cumulativeGain: running };
+  });
+
+  return { currentGw, bank, moves: ranked };
+}

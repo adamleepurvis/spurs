@@ -13,7 +13,10 @@ const DRAFT_LINKS = [
   { href: "/optimizer", label: "Optimizer" },
 ];
 
-const CLASSIC_LINKS = [{ href: "/classic", label: "Classic Team" }];
+const CLASSIC_LINKS = [
+  { href: "/classic", label: "Classic Team" },
+  { href: "/classic/optimizer", label: "Optimizer" },
+];
 
 function NavLink({ href, label, active }) {
   return (
