@@ -592,3 +592,69 @@ export async function getTradeTargets() {
     byPosition,
   };
 }
+
+const FORMATION_MIN = { DEF: 3, MID: 2, FWD: 1 };
+
+/**
+ * The highest-epNext starting XI available under formation rules (1 GK,
+ * 3-5 DEF, 2-5 MID, 1-3 FWD - draft squads are always exactly 2/5/5/3,
+ * so no upper-bound check is needed once minimums are met), diffed
+ * against your actual current lineup.
+ */
+export async function getStartSitSuggestions() {
+  const ref = await getSharedRefData();
+  const { currentEvent } = ref;
+
+  const { roster, hasLineupOrder } = await buildRoster(MY_ENTRY_ID, currentEvent, ref);
+
+  const byPos = { GKP: [], DEF: [], MID: [], FWD: [] };
+  for (const p of roster) byPos[p.pos].push(p);
+  for (const pos in byPos) {
+    byPos[pos].sort((a, b) => (b.epNext ?? -1) - (a.epNext ?? -1));
+  }
+
+  // Exactly one GK always starts: the better of the two.
+  const optimalGk = byPos.GKP[0];
+
+  // Take each outfield position's minimum first, then fill the
+  // remaining slots with whoever's left over with the highest epNext.
+  const outfieldPositions = ["DEF", "MID", "FWD"];
+  const included = new Set();
+  for (const pos of outfieldPositions) {
+    for (let i = 0; i < FORMATION_MIN[pos]; i++) {
+      if (byPos[pos][i]) included.add(byPos[pos][i]);
+    }
+  }
+  const remainingSlots = 10 - included.size;
+  const pool = outfieldPositions
+    .flatMap((pos) => byPos[pos].filter((p) => !included.has(p)))
+    .sort((a, b) => (b.epNext ?? -1) - (a.epNext ?? -1));
+  for (let i = 0; i < remainingSlots && i < pool.length; i++) {
+    included.add(pool[i]);
+  }
+
+  const optimalStarters = [optimalGk, ...included].filter(Boolean);
+  const optimalSet = new Set(optimalStarters);
+
+  const currentStarters = hasLineupOrder
+    ? roster.filter((p) => p.positionSlot <= 11)
+    : [];
+  const currentSet = new Set(currentStarters);
+
+  const shouldBench = currentStarters.filter((p) => !optimalSet.has(p));
+  const shouldStart = optimalStarters.filter((p) => !currentSet.has(p));
+
+  const currentTotal = currentStarters.reduce((sum, p) => sum + (p.epNext ?? 0), 0);
+  const optimalTotal = optimalStarters.reduce((sum, p) => sum + (p.epNext ?? 0), 0);
+
+  return {
+    currentGw: currentEvent,
+    hasLineupOrder,
+    optimalStarters,
+    shouldStart,
+    shouldBench,
+    currentTotal,
+    optimalTotal,
+    gain: optimalTotal - currentTotal,
+  };
+}

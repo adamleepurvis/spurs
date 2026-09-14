@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/free-agents", label: "Free Agents" },
   { href: "/rankings", label: "Season Rankings" },
   { href: "/trades", label: "Trade Targets" },
+  { href: "/lineup", label: "Start/Sit" },
 ];
 
 export default function NavBar() {
