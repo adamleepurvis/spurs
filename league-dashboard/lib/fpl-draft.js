@@ -191,14 +191,27 @@ function sumExpectedPoints(roster, hasLineupOrder) {
   return relevant.reduce((sum, p) => sum + (p.epNext ?? 0), 0);
 }
 
-async function getSharedRefData() {
+/**
+ * The API's own `events.current` doesn't advance to the next gameweek
+ * the moment the current one finishes - it lags behind by some margin
+ * on FPL's side. "First gameweek that hasn't finished yet" tracks what
+ * a manager actually wants to see (mid-week during the current one,
+ * immediately jumping to the next one once it wraps) much more
+ * closely than trusting that flag directly.
+ */
+function resolveCurrentGw(events) {
+  return events.data.find((e) => !e.finished)?.id ?? events.current;
+}
+
+async function getSharedRefData(gwOverride) {
   const [bootstrap, league, elementStatus] = await Promise.all([
     fetchJson(`${DRAFT_API}/bootstrap-static`),
     fetchJson(`${DRAFT_API}/league/${LEAGUE_ID}/details`),
     fetchJson(`${DRAFT_API}/league/${LEAGUE_ID}/element-status`),
   ]);
 
-  const currentEvent = bootstrap.events.current;
+  const liveGw = resolveCurrentGw(bootstrap.events);
+  const currentEvent = gwOverride ?? liveGw;
   const [fixtureMap, classicBootstrap] = await Promise.all([
     getFixtureMapForGw(currentEvent),
     fetchJson(`${CLASSIC_API}/bootstrap-static/`),
@@ -208,6 +221,9 @@ async function getSharedRefData() {
     bootstrap,
     league,
     currentEvent,
+    liveGw,
+    firstGw: bootstrap.events.data[0].id,
+    lastGw: bootstrap.events.data[bootstrap.events.data.length - 1].id,
     fixtureMap,
     epNextByCode: new Map(classicBootstrap.elements.map((e) => [e.code, e.ep_next])),
     elements: new Map(bootstrap.elements.map((e) => [e.id, e])),
@@ -277,8 +293,8 @@ export async function getDraftDashboard() {
  * upside - how many starters haven't kicked off yet and how many
  * expected points are still on the pitch for them.
  */
-export async function getMatchups() {
-  const ref = await getSharedRefData();
+export async function getMatchups(gwOverride) {
+  const ref = await getSharedRefData(gwOverride);
   const { league, entries, currentEvent } = ref;
 
   const teamInfo = (leagueEntryId) => {
@@ -331,6 +347,9 @@ export async function getMatchups() {
   return {
     leagueName: league.league.name,
     currentGw: currentEvent,
+    liveGw: ref.liveGw,
+    firstGw: ref.firstGw,
+    lastGw: ref.lastGw,
     matches,
   };
 }
@@ -339,8 +358,8 @@ export async function getMatchups() {
  * Full lineup + score breakdown for one head-to-head matchup, identified
  * by the two entry_ids playing in it (order doesn't matter).
  */
-export async function getMatchupDetail(entryIdA, entryIdB) {
-  const ref = await getSharedRefData();
+export async function getMatchupDetail(entryIdA, entryIdB, gwOverride) {
+  const ref = await getSharedRefData(gwOverride);
   const { league, entries, currentEvent } = ref;
 
   const match = league.matches.find((m) => {

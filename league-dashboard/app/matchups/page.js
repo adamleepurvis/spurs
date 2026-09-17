@@ -46,7 +46,7 @@ function TeamSide({ team, points, winning, align }) {
   );
 }
 
-function MatchCard({ match }) {
+function MatchCard({ match, gw }) {
   const { team1, team2, started, finished, involvesMe } = match;
   const team1Winning = started && team1.points > team2.points;
   const team2Winning = started && team2.points > team1.points;
@@ -60,7 +60,7 @@ function MatchCard({ match }) {
 
   return (
     <Link
-      href={`/matchups/${team1.entryId}-${team2.entryId}`}
+      href={`/matchups/${team1.entryId}-${team2.entryId}?gw=${gw}`}
       className={`block rounded-md border bg-pitch-surface p-5 shadow-lg transition-colors hover:bg-pitch-surface2 ${
         involvesMe ? "border-gold/70 shadow-[0_0_0_1px_rgba(242,181,68,0.3)]" : "border-pitch-border"
       }`}
@@ -112,8 +112,46 @@ function MatchCard({ match }) {
   );
 }
 
-export default async function MatchupsPage() {
-  const data = await getMatchups();
+function GwNav({ gw, firstGw, lastGw, liveGw }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Link
+        href={gw > firstGw ? `/matchups?gw=${gw - 1}` : "#"}
+        aria-disabled={gw <= firstGw}
+        className={`rounded bg-pitch-surface2 px-2.5 py-1 font-display text-sm font-bold ${
+          gw <= firstGw ? "pointer-events-none opacity-30" : "hover:bg-pitch-border"
+        }`}
+      >
+        &larr;
+      </Link>
+      <span className="inline-flex items-baseline gap-1.5 rounded bg-ink px-3 py-1 font-display text-[15px] font-bold text-pitch-bg">
+        GW{gw}
+      </span>
+      <Link
+        href={gw < lastGw ? `/matchups?gw=${gw + 1}` : "#"}
+        aria-disabled={gw >= lastGw}
+        className={`rounded bg-pitch-surface2 px-2.5 py-1 font-display text-sm font-bold ${
+          gw >= lastGw ? "pointer-events-none opacity-30" : "hover:bg-pitch-border"
+        }`}
+      >
+        &rarr;
+      </Link>
+      {gw !== liveGw && (
+        <Link
+          href="/matchups"
+          className="ml-1 text-[11px] font-semibold uppercase tracking-wide text-gold hover:underline"
+        >
+          This week
+        </Link>
+      )}
+    </div>
+  );
+}
+
+export default async function MatchupsPage({ searchParams }) {
+  const params = await searchParams;
+  const gwParam = Number(params?.gw);
+  const data = await getMatchups(Number.isInteger(gwParam) ? gwParam : undefined);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
@@ -124,14 +162,17 @@ export default async function MatchupsPage() {
           </h1>
           <p className="mt-1.5 text-sm text-ink-dim">{data.leagueName}</p>
         </div>
-        <span className="inline-flex items-baseline gap-1.5 rounded bg-ink px-3 py-1 font-display text-[15px] font-bold text-pitch-bg">
-          GW{data.currentGw}
-        </span>
+        <GwNav
+          gw={data.currentGw}
+          firstGw={data.firstGw}
+          lastGw={data.lastGw}
+          liveGw={data.liveGw}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {data.matches.map((match, i) => (
-          <MatchCard key={i} match={match} />
+          <MatchCard key={i} match={match} gw={data.currentGw} />
         ))}
       </div>
 

@@ -14,13 +14,19 @@ function TeamHeader({ team, winning, align }) {
   );
 }
 
-export default async function MatchupDetailPage({ params }) {
+export default async function MatchupDetailPage({ params, searchParams }) {
   const { matchId } = await params;
+  const { gw } = await searchParams;
   const [entryIdA, entryIdB] = matchId.split("-").map(Number);
 
   if (!entryIdA || !entryIdB) notFound();
 
-  const data = await getMatchupDetail(entryIdA, entryIdB);
+  const gwParam = Number(gw);
+  const data = await getMatchupDetail(
+    entryIdA,
+    entryIdB,
+    Number.isInteger(gwParam) ? gwParam : undefined
+  );
   if (!data) notFound();
 
   const { team1, team2, started, finished } = data;
@@ -37,7 +43,7 @@ export default async function MatchupDetailPage({ params }) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
       <Link
-        href="/matchups"
+        href={`/matchups?gw=${data.currentGw}`}
         className="mb-4 inline-block text-xs font-semibold uppercase tracking-wide text-ink-dim hover:text-ink"
       >
         &larr; All matchups

@@ -86,9 +86,20 @@ function mapClassicRoster(picks, { elements, teams, positions }) {
   });
 }
 
+/**
+ * Same fix as the draft side: `is_current` lags behind on FPL's end
+ * even after the gameweek has fully finished, so derive it from
+ * "first gameweek not yet finished" instead of trusting the flag.
+ */
+function resolveCurrentGw(events) {
+  return (
+    events.find((e) => !e.finished)?.id ?? events.find((e) => e.is_current)?.id ?? null
+  );
+}
+
 async function getClassicRefData() {
   const bootstrap = await fetchJson(`${CLASSIC_API}/bootstrap-static/`);
-  const currentGw = bootstrap.events.find((e) => e.is_current)?.id ?? null;
+  const currentGw = resolveCurrentGw(bootstrap.events);
   return {
     bootstrap,
     currentGw,
@@ -96,6 +107,19 @@ async function getClassicRefData() {
     teams: new Map(bootstrap.teams.map((t) => [t.id, t.short_name])),
     positions: new Map(bootstrap.element_types.map((t) => [t.id, t.singular_name_short])),
   };
+}
+
+/**
+ * A gameweek's picks aren't published until its deadline passes - in
+ * the gap between one gameweek finishing and the next one locking in,
+ * fall back to the last known squad rather than showing nothing.
+ */
+async function getPicksWithFallback(entryId, gw) {
+  if (!gw) return null;
+  return (
+    (await tryFetchJson(`${CLASSIC_API}/entry/${entryId}/event/${gw}/picks/`)) ??
+    (await tryFetchJson(`${CLASSIC_API}/entry/${entryId}/event/${gw - 1}/picks/`))
+  );
 }
 
 /**
@@ -110,9 +134,7 @@ export async function getClassicDashboard() {
 
   const [league, picks] = await Promise.all([
     fetchJson(`${CLASSIC_API}/leagues-classic/${CLASSIC_LEAGUE_ID}/standings/`),
-    currentGw
-      ? tryFetchJson(`${CLASSIC_API}/entry/${CLASSIC_ENTRY_ID}/event/${currentGw}/picks/`)
-      : null,
+    getPicksWithFallback(CLASSIC_ENTRY_ID, currentGw),
   ]);
 
   const now = Date.now();
@@ -156,7 +178,7 @@ export async function getClassicTeamRoster(entryId) {
 
   const [entryInfo, picks] = await Promise.all([
     tryFetchJson(`${CLASSIC_API}/entry/${entryId}/`),
-    currentGw ? tryFetchJson(`${CLASSIC_API}/entry/${entryId}/event/${currentGw}/picks/`) : null,
+    getPicksWithFallback(entryId, currentGw),
   ]);
   if (!entryInfo) return null;
 
@@ -191,9 +213,7 @@ export async function getClassicRosterOptimizer() {
   const { currentGw, elements, teams, positions } = ref;
 
   const [picks, copilotPlayers] = await Promise.all([
-    currentGw
-      ? tryFetchJson(`${CLASSIC_API}/entry/${CLASSIC_ENTRY_ID}/event/${currentGw}/picks/`)
-      : null,
+    getPicksWithFallback(CLASSIC_ENTRY_ID, currentGw),
     fetchJson(`${COPILOT_API}/expected-points?window=8`),
   ]);
 
