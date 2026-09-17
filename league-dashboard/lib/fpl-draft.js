@@ -145,22 +145,37 @@ function mapElementsForRoster(picksOrElements, isRealPicks, ref) {
  * flagged "current".
  */
 async function buildRoster(entryId, currentEvent, ref) {
+  const currentSquadIds = new Set(
+    Array.from(ref.elements.values())
+      .filter((el) => ref.ownerByElement.get(el.id) === entryId)
+      .map((el) => el.id)
+  );
+
   const picks =
     (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent}`)) ??
     (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent - 1}`));
 
-  const hasLineupOrder = Boolean(picks?.picks);
-  const roster = hasLineupOrder
+  // A locked picks snapshot only reflects reality if it's still the same
+  // 15 players you currently own - once picks fall back to last
+  // gameweek's lineup, any waiver move since then makes that snapshot
+  // stale (it'll still list a player you've since dropped). Ownership
+  // via element-status is always live, so treat a mismatch as "no
+  // lineup order" and fall back to the current actual squad instead of
+  // trusting an outdated locked-in lineup.
+  const picksMatchCurrentSquad =
+    Boolean(picks?.picks) &&
+    picks.picks.length === currentSquadIds.size &&
+    picks.picks.every((p) => currentSquadIds.has(p.element));
+
+  const roster = picksMatchCurrentSquad
     ? mapElementsForRoster(picks.picks, true, ref)
     : mapElementsForRoster(
-        Array.from(ref.elements.values()).filter(
-          (el) => ref.ownerByElement.get(el.id) === entryId
-        ),
+        Array.from(ref.elements.values()).filter((el) => currentSquadIds.has(el.id)),
         false,
         ref
       );
 
-  return { roster, hasLineupOrder };
+  return { roster, hasLineupOrder: picksMatchCurrentSquad };
 }
 
 /**
