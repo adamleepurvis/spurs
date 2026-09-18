@@ -712,10 +712,16 @@ export async function getStartSitSuggestions() {
   const currentTotal = currentStarters.reduce((sum, p) => sum + (p.epNext ?? 0), 0);
   const optimalTotal = optimalStarters.reduce((sum, p) => sum + (p.epNext ?? 0), 0);
 
+  const posOrder = { GKP: 0, DEF: 1, MID: 2, FWD: 3 };
+  const optimalBench = roster
+    .filter((p) => !optimalSet.has(p))
+    .sort((a, b) => posOrder[a.pos] - posOrder[b.pos] || (b.epNext ?? -1) - (a.epNext ?? -1));
+
   return {
     currentGw: currentEvent,
     hasLineupOrder,
     optimalStarters,
+    optimalBench,
     shouldStart,
     shouldBench,
     currentTotal,

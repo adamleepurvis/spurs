@@ -2,39 +2,16 @@ import { getStartSitSuggestions } from "@/lib/fpl-draft";
 
 const POSITION_ORDER = ["GKP", "DEF", "MID", "FWD"];
 
-function SwapRow({ p, tone }) {
+function LineupRow({ p, dim }) {
   return (
     <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-pitch-border last:border-b-0">
       <span className="min-w-9 rounded bg-pitch-surface2 px-1.5 py-0.5 text-center font-mono text-[10.5px] text-ink-dim">
         {p.team}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[13.5px] font-medium">{p.name}</span>
-        {p.opponentTeam && (
-          <span className="block text-[10.5px] text-ink-dim">
-            vs {p.opponentTeam} ({p.opponentIsHome ? "H" : "A"})
-          </span>
-        )}
-      </span>
-      <span
-        className={`min-w-12 text-right font-mono text-sm font-semibold ${
-          tone === "positive" ? "text-positive" : "text-danger"
-        }`}
-      >
-        {p.epNext != null ? p.epNext.toFixed(1) : "—"}
-      </span>
-    </div>
-  );
-}
-
-function LineupRow({ p }) {
-  return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-pitch-border last:border-b-0">
-      <span className="min-w-9 rounded bg-pitch-surface2 px-1.5 py-0.5 text-center font-mono text-[10.5px] text-ink-dim">
-        {p.team}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[13.5px] font-medium">{p.name}</span>
+        <span className={`block text-[13.5px] font-medium ${dim ? "text-ink-dim" : ""}`}>
+          {p.name}
+        </span>
         {p.opponentTeam && (
           <span className="block text-[10.5px] text-ink-dim">
             vs {p.opponentTeam} ({p.opponentIsHome ? "H" : "A"})
@@ -44,7 +21,11 @@ function LineupRow({ p }) {
       <span className="min-w-10 rounded bg-pitch-surface2 px-1.5 py-0.5 text-center font-mono text-[10.5px] text-ink-dim">
         {p.pos}
       </span>
-      <span className="min-w-12 text-right font-mono text-sm font-semibold text-gold">
+      <span
+        className={`min-w-12 text-right font-mono text-sm font-semibold ${
+          dim ? "text-ink-dim" : "text-gold"
+        }`}
+      >
         {p.epNext != null ? p.epNext.toFixed(1) : "—"}
       </span>
     </div>
@@ -89,31 +70,6 @@ export default async function LineupPage() {
         </p>
       )}
 
-      {hasSwaps && (
-        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <section className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg">
-            <div className="border-b border-pitch-border px-4.5 py-4">
-              <h2 className="font-display text-lg font-semibold uppercase tracking-wide text-positive">
-                Start these
-              </h2>
-            </div>
-            {data.shouldStart.map((p, i) => (
-              <SwapRow key={i} p={p} tone="positive" />
-            ))}
-          </section>
-          <section className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg">
-            <div className="border-b border-pitch-border px-4.5 py-4">
-              <h2 className="font-display text-lg font-semibold uppercase tracking-wide text-danger">
-                Bench these
-              </h2>
-            </div>
-            {data.shouldBench.map((p, i) => (
-              <SwapRow key={i} p={p} tone="negative" />
-            ))}
-          </section>
-        </div>
-      )}
-
       <section className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg">
         <div className="flex items-baseline justify-between border-b border-pitch-border px-4.5 py-4">
           <h2 className="font-display text-lg font-semibold uppercase tracking-wide">
@@ -128,6 +84,16 @@ export default async function LineupPage() {
           if (!players.length) return null;
           return players.map((p, i) => <LineupRow key={`${pos}-${i}`} p={p} />);
         })}
+        {data.optimalBench.length > 0 && (
+          <>
+            <div className="border-y border-pitch-border bg-pitch-surface2 px-4 py-1.5 text-[10px] uppercase tracking-widest text-ink-dim">
+              Bench
+            </div>
+            {data.optimalBench.map((p, i) => (
+              <LineupRow key={`bench-${i}`} p={p} dim />
+            ))}
+          </>
+        )}
       </section>
 
       <footer className="mt-8 text-center text-[11.5px] text-ink-dim">
