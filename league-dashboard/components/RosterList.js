@@ -25,7 +25,7 @@ function autoSubNote(p) {
   return null;
 }
 
-function PlayerRow({ p }) {
+function PlayerRow({ p, showXpts }) {
   const subNote = autoSubNote(p);
   const flagged = p.status !== "a" || p.news;
   const played = p.fixtureStarted === true;
@@ -84,16 +84,18 @@ function PlayerRow({ p }) {
             {(p.eventPoints + p.liveRemainingXp).toFixed(1)} proj
           </span>
         ) : (
-          <span className="block text-[10px] text-ink-dim">
-            {p.epNext != null ? p.epNext.toFixed(1) : "—"} xPts
-          </span>
+          showXpts && (
+            <span className="block text-[10px] text-ink-dim">
+              {p.epNext != null ? p.epNext.toFixed(1) : "—"} xPts
+            </span>
+          )
         )}
       </span>
     </div>
   );
 }
 
-export default function RosterList({ roster, hasLineupOrder, currentGw }) {
+export default function RosterList({ roster, hasLineupOrder, currentGw, showXpts = true }) {
   const starters = hasLineupOrder
     ? roster.filter((p) => p.positionSlot <= 11)
     : roster;
@@ -110,7 +112,7 @@ export default function RosterList({ roster, hasLineupOrder, currentGw }) {
               {POSITION_LABEL[pos]}
             </div>
             {players.map((p, i) => (
-              <PlayerRow key={`${p.name}-${i}`} p={p} />
+              <PlayerRow key={`${p.name}-${i}`} p={p} showXpts={showXpts} />
             ))}
           </div>
         );
@@ -121,7 +123,7 @@ export default function RosterList({ roster, hasLineupOrder, currentGw }) {
             Bench
           </div>
           {bench.map((p, i) => (
-            <PlayerRow key={`bench-${p.name}-${i}`} p={p} />
+            <PlayerRow key={`bench-${p.name}-${i}`} p={p} showXpts={showXpts} />
           ))}
         </>
       )}

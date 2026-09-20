@@ -116,6 +116,7 @@ export default async function MatchupDetailPage({
             <TeamHeader team={team1} winning={team1Winning} align="left" />
           </div>
           <div className="flex flex-col items-center gap-1.5 font-mono">
+            {!data.isPast && (
             <div className="flex items-center gap-2 text-xs">
               <span className={team1ExpAhead ? "font-semibold text-ink" : "text-ink-dim"}>
                 {team1.expectedTotal.toFixed(1)}
@@ -125,6 +126,7 @@ export default async function MatchupDetailPage({
                 {team2.expectedTotal.toFixed(1)}
               </span>
             </div>
+            )}
             <div className="flex items-center gap-3">
               <span className={`text-4xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
                 {started ? fmtPoints(team1.points) : "–"}
@@ -176,6 +178,7 @@ export default async function MatchupDetailPage({
                 roster={team.roster}
                 hasLineupOrder={team.hasLineupOrder}
                 currentGw={data.currentGw}
+                showXpts={!data.isPast}
               />
             )}
           </section>

@@ -50,7 +50,7 @@ function TeamSide({ team, points, winning, align }) {
   );
 }
 
-function MatchCard({ match, gw, basePath, shared }) {
+function MatchCard({ match, gw, basePath, shared, isPast }) {
   const { team1, team2, started, finished } = match;
   const involvesMe = match.involvesMe && !shared;
   const team1Winning = started && team1.points > team2.points;
@@ -81,6 +81,7 @@ function MatchCard({ match, gw, basePath, shared }) {
       <div className="flex items-center gap-4">
         <TeamSide team={team1} points={team1.points} winning={team1Winning} align="left" />
         <div className="flex flex-col items-center gap-1.5 font-mono">
+          {!isPast && (
           <div className="flex items-center gap-2 text-[11px]">
             <span className={team1ExpAhead ? "font-semibold text-ink" : "text-ink-dim"}>
               {team1.expectedTotal.toFixed(1)}
@@ -90,6 +91,7 @@ function MatchCard({ match, gw, basePath, shared }) {
               {team2.expectedTotal.toFixed(1)}
             </span>
           </div>
+          )}
           <div className="flex items-center gap-3">
             <span className={`text-3xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
               {started ? fmtPoints(team1.points) : "–"}
@@ -188,6 +190,7 @@ export default async function MatchupsPage({
             gw={data.currentGw}
             basePath={basePath}
             shared={shared}
+            isPast={data.isPast}
           />
         ))}
       </div>

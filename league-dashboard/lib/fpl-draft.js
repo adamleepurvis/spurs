@@ -117,6 +117,7 @@ export function liveRemainingShare(el, live) {
 export async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
   const empty = {
     available: false,
+    pointsByCode: new Map(),
     minutesByCode: new Map(),
     matchMinutesByTeam: new Map(),
   };
@@ -132,6 +133,7 @@ export async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
     if (!el) continue;
     const minutes = item.stats.minutes;
     empty.minutesByCode.set(el.code, minutes);
+    empty.pointsByCode.set(el.code, item.stats.total_points);
     if (minutes > (empty.matchMinutesByTeam.get(el.team) ?? 0)) {
       empty.matchMinutesByTeam.set(el.team, minutes);
     }
@@ -139,7 +141,7 @@ export async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
   return empty;
 }
 
-function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live }) {
+function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live, currentEvent, liveGw }) {
   const fixture = fixtureMap.get(el.team);
   const epNextRaw = epNextByCode.get(el.code);
   const epNext = epNextRaw != null ? Number(epNextRaw) : null;
@@ -147,6 +149,13 @@ function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live }) {
   return {
     code: el.code,
     minutes,
+    // el.event_points is always the *latest* gameweek's; for any other
+    // gameweek use that gameweek's own points from the live feed.
+    eventPoints: live.available
+      ? (live.pointsByCode.get(el.code) ?? 0)
+      : currentEvent === liveGw
+        ? el.event_points
+        : 0,
     // Only trust "didn't play" once their match is over (or they have no
     // fixture at all) and we actually have minutes data to check against.
     didNotPlay: live.available && minutes === 0 && (fixture ? fixture.done : true),
@@ -170,7 +179,6 @@ function mapElementsForRoster(picksOrElements, isRealPicks, ref) {
         name: el.web_name,
         pos: positions.get(el.element_type),
         ...enrichPlayer(el, ref),
-        eventPoints: el.event_points,
         status: el.status,
         news: el.news,
         isCaptain: p.is_captain,
@@ -183,7 +191,6 @@ function mapElementsForRoster(picksOrElements, isRealPicks, ref) {
     name: el.web_name,
     pos: positions.get(el.element_type),
     ...enrichPlayer(el, ref),
-    eventPoints: el.event_points,
     status: el.status,
     news: el.news,
     isCaptain: false,
@@ -206,21 +213,23 @@ async function buildRoster(entryId, currentEvent, ref) {
       .map((el) => el.id)
   );
 
+  const ownPicks = await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent}`);
   const picks =
-    (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent}`)) ??
-    (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent - 1}`));
+    ownPicks ?? (await tryFetchJson(`${DRAFT_API}/entry/${entryId}/event/${currentEvent - 1}`));
 
-  // A locked picks snapshot only reflects reality if it's still the same
-  // 15 players you currently own - once picks fall back to last
-  // gameweek's lineup, any waiver move since then makes that snapshot
-  // stale (it'll still list a player you've since dropped). Ownership
-  // via element-status is always live, so treat a mismatch as "no
-  // lineup order" and fall back to the current actual squad instead of
-  // trusting an outdated locked-in lineup.
+  // The requested gameweek's own picks are always the truth for that
+  // gameweek (including past ones, whose squads differ from today's). But
+  // when they aren't published yet and we fall back to last gameweek's
+  // locked lineup, that snapshot is only valid while it's still the same
+  // 15 players you currently own - any waiver move since makes it stale
+  // (it'd still list a player you've since dropped). Ownership via
+  // element-status is live, so on a mismatch treat it as "no lineup
+  // order" and rebuild from the current squad instead.
   const picksMatchCurrentSquad =
     Boolean(picks?.picks) &&
-    picks.picks.length === currentSquadIds.size &&
-    picks.picks.every((p) => currentSquadIds.has(p.element));
+    (ownPicks != null ||
+      (picks.picks.length === currentSquadIds.size &&
+        picks.picks.every((p) => currentSquadIds.has(p.element))));
 
   const roster = picksMatchCurrentSquad
     ? mapElementsForRoster(picks.picks, true, ref)
@@ -381,7 +390,13 @@ async function getSharedRefData(gwOverride) {
     lastGw: bootstrap.events.data[bootstrap.events.data.length - 1].id,
     fixtureMap,
     live,
-    epNextByCode: new Map(classicBootstrap.elements.map((e) => [e.code, e.ep_next])),
+    isPast: currentEvent < liveGw,
+    // ep_next only ever describes the upcoming gameweek, so it says
+    // nothing about a gameweek that's already been played.
+    epNextByCode:
+      currentEvent < liveGw
+        ? new Map()
+        : new Map(classicBootstrap.elements.map((e) => [e.code, e.ep_next])),
     elements: new Map(bootstrap.elements.map((e) => [e.id, e])),
     teams: new Map(bootstrap.teams.map((t) => [t.id, t.short_name])),
     positions: new Map(bootstrap.element_types.map((t) => [t.id, t.singular_name_short])),
@@ -545,6 +560,7 @@ export async function getMatchups(gwOverride) {
     leagueName: league.league.name,
     currentGw: currentEvent,
     liveGw: ref.liveGw,
+    isPast: ref.isPast,
     firstGw: ref.firstGw,
     lastGw: ref.lastGw,
     matches,
@@ -595,6 +611,7 @@ export async function getMatchupDetail(keyA, keyB, gwOverride) {
   return {
     leagueName: league.league.name,
     currentGw: currentEvent,
+    isPast: ref.isPast,
     started: match.started,
     finished: match.finished,
     team1: sideFor(match.league_entry_1),
