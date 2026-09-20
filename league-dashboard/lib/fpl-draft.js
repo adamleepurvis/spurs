@@ -176,6 +176,7 @@ function mapElementsForRoster(picksOrElements, isRealPicks, ref) {
     return picksOrElements.map((p) => {
       const el = elements.get(p.element);
       return {
+        elementId: el.id,
         name: el.web_name,
         pos: positions.get(el.element_type),
         ...enrichPlayer(el, ref),
@@ -188,6 +189,7 @@ function mapElementsForRoster(picksOrElements, isRealPicks, ref) {
     });
   }
   return picksOrElements.map((el) => ({
+    elementId: el.id,
     name: el.web_name,
     pos: positions.get(el.element_type),
     ...enrichPlayer(el, ref),
@@ -239,7 +241,29 @@ async function buildRoster(entryId, currentEvent, ref) {
         ref
       );
 
-  return { roster, hasLineupOrder: picksMatchCurrentSquad };
+  // Once a gameweek is final the API rewrites the lineup to reflect its
+  // auto-subs and lists them explicitly.
+  const officialSubs = picksMatchCurrentSquad && ownPicks ? (ownPicks.subs ?? []) : [];
+
+  return { roster, hasLineupOrder: picksMatchCurrentSquad, officialSubs };
+}
+
+/**
+ * A finished gameweek's auto-subs as recorded by FPL. The stored lineup
+ * already has them applied (the sub is in the XI, the player who didn't
+ * play is on the bench), so they only need annotating, not re-scoring.
+ */
+function officialAutoSubs(roster, subs) {
+  const result = { confirmed: [], pending: [], alreadyApplied: true };
+  for (const s of subs) {
+    const inPlayer = roster.find((p) => p.elementId === s.element_in);
+    const outPlayer = roster.find((p) => p.elementId === s.element_out);
+    if (!inPlayer || !outPlayer) continue;
+    inPlayer.autoSub = { kind: "confirmed", dir: "in", with: outPlayer.name };
+    outPlayer.autoSub = { kind: "confirmed", dir: "out", with: inPlayer.name };
+    result.confirmed.push({ out: outPlayer, in: inPlayer });
+  }
+  return result;
 }
 
 const FORMATION_LIMITS = { DEF: 3, MID: 2, FWD: 1 };
@@ -258,7 +282,7 @@ function formationIsLegal(outfield) {
  * still could. Annotates each player's `autoSub` for display.
  */
 function computeAutoSubs(roster, hasLineupOrder) {
-  const result = { confirmed: [], pending: [] };
+  const result = { confirmed: [], pending: [], alreadyApplied: false };
   if (!hasLineupOrder) return result;
 
   const bySlot = (a, b) => a.positionSlot - b.positionSlot;
@@ -282,8 +306,8 @@ function computeAutoSubs(roster, hasLineupOrder) {
     usedSubs.add(sub);
     replaced.add(out);
     result[kind].push({ out, in: sub });
-    out.autoSub = { kind, with: sub.name };
-    sub.autoSub = { kind, with: out.name };
+    out.autoSub = { kind, dir: "out", with: sub.name };
+    sub.autoSub = { kind, dir: "in", with: out.name };
     return true;
   };
 
@@ -338,7 +362,9 @@ function liveScore(roster, hasLineupOrder, officialPoints, matchFinished, autoSu
   const starterPoints = roster
     .filter((p) => p.positionSlot <= 11)
     .reduce((sum, p) => sum + (p.eventPoints ?? 0), 0);
-  const subPoints = autoSubs.confirmed.reduce((sum, s) => sum + (s.in.eventPoints ?? 0), 0);
+  const subPoints = autoSubs.alreadyApplied
+    ? 0
+    : autoSubs.confirmed.reduce((sum, s) => sum + (s.in.eventPoints ?? 0), 0);
   return starterPoints + subPoints;
 }
 
@@ -479,13 +505,19 @@ async function summarizeSide(ref, leagueEntryId, officialPoints, matchFinished) 
       points: officialPoints,
       roster: [],
       hasLineupOrder: false,
-      autoSubs: { confirmed: [], pending: [] },
+      autoSubs: { confirmed: [], pending: [], alreadyApplied: false },
       remaining: { count: 0, points: 0 },
       expectedTotal: 0,
     };
   }
-  const { roster, hasLineupOrder } = await buildRoster(entry.entry_id, ref.currentEvent, ref);
-  const autoSubs = computeAutoSubs(roster, hasLineupOrder);
+  const { roster, hasLineupOrder, officialSubs } = await buildRoster(
+    entry.entry_id,
+    ref.currentEvent,
+    ref
+  );
+  const autoSubs = officialSubs.length
+    ? officialAutoSubs(roster, officialSubs)
+    : computeAutoSubs(roster, hasLineupOrder);
   return {
     ...base,
     points: liveScore(roster, hasLineupOrder, officialPoints, matchFinished, autoSubs),

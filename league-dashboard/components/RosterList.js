@@ -9,13 +9,13 @@ const POSITION_LABEL = {
 function autoSubNote(p) {
   const isStarter = p.positionSlot != null && p.positionSlot <= 11;
   if (p.autoSub) {
-    const { kind, with: other } = p.autoSub;
+    const { kind, dir, with: other } = p.autoSub;
     if (kind === "confirmed") {
-      return isStarter
+      return dir === "out"
         ? { text: `↓ Didn't play — replaced by ${other}`, tone: "text-danger" }
         : { text: `↑ Auto-sub in for ${other}`, tone: "text-positive" };
     }
-    return isStarter
+    return dir === "out"
       ? { text: `Didn't play — ${other} could replace (yet to play)`, tone: "text-gold" }
       : { text: `Would auto-sub in for ${other} if he plays`, tone: "text-gold" };
   }
