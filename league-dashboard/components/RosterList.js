@@ -51,9 +51,18 @@ function PlayerRow({ p }) {
         ) : (
           <span className="block text-[11px] italic text-ink-dim">Yet to play</span>
         )}
-        <span className="block text-[10px] text-ink-dim">
-          {p.epNext != null ? p.epNext.toFixed(1) : "—"} xPts
-        </span>
+        {p.fixtureLive ? (
+          <span
+            title={`Live projection: points so far + ${p.epNext?.toFixed(1) ?? "0"} xPts pre-match forecast scaled by time left`}
+            className="block text-[10px] text-positive"
+          >
+            {(p.eventPoints + p.liveRemainingXp).toFixed(1)} proj
+          </span>
+        ) : (
+          <span className="block text-[10px] text-ink-dim">
+            {p.epNext != null ? p.epNext.toFixed(1) : "—"} xPts
+          </span>
+        )}
       </span>
     </div>
   );

@@ -94,9 +94,48 @@ async function getFixtureMapForGw(gw) {
   return map;
 }
 
-function enrichPlayer(el, { teams, fixtureMap, epNextByCode }) {
+/**
+ * Rough share of a player's forecast still to come while their match is
+ * live: the fraction of the 90 left on the match clock (estimated from
+ * the most minutes any player on that side has logged), or zero if
+ * they've already come off. Ignores stoppage time and future subs.
+ */
+function liveRemainingShare(el, live) {
+  const minutes = live.minutesByCode.get(el.code) ?? 0;
+  const matchMinutes = live.matchMinutesByTeam.get(el.team) ?? 0;
+  if (minutes < matchMinutes - 5) return 0;
+  return Math.max(0, 90 - matchMinutes) / 90;
+}
+
+/**
+ * Minutes played so far, keyed by the cross-API player `code`, plus an
+ * estimated match clock per team. Only fetched when some fixture in the
+ * gameweek is actually live - otherwise there's nothing to project.
+ */
+async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
+  const empty = { minutesByCode: new Map(), matchMinutesByTeam: new Map() };
+  if (!Array.from(fixtureMap.values()).some((f) => f.live)) return empty;
+
+  const liveData = await tryFetchJson(`${CLASSIC_API}/event/${gw}/live/`);
+  if (!liveData) return empty;
+
+  const classicById = new Map(classicBootstrap.elements.map((e) => [e.id, e]));
+  for (const item of liveData.elements) {
+    const el = classicById.get(item.id);
+    if (!el) continue;
+    const minutes = item.stats.minutes;
+    empty.minutesByCode.set(el.code, minutes);
+    if (minutes > (empty.matchMinutesByTeam.get(el.team) ?? 0)) {
+      empty.matchMinutesByTeam.set(el.team, minutes);
+    }
+  }
+  return empty;
+}
+
+function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live }) {
   const fixture = fixtureMap.get(el.team);
   const epNextRaw = epNextByCode.get(el.code);
+  const epNext = epNextRaw != null ? Number(epNextRaw) : null;
   return {
     code: el.code,
     team: teams.get(el.team),
@@ -105,7 +144,8 @@ function enrichPlayer(el, { teams, fixtureMap, epNextByCode }) {
     fixtureStarted: fixture?.started ?? null,
     fixtureFinished: fixture?.finished ?? null,
     fixtureLive: fixture?.live ?? false,
-    epNext: epNextRaw != null ? Number(epNextRaw) : null,
+    epNext,
+    liveRemainingXp: fixture?.live && epNext != null ? epNext * liveRemainingShare(el, live) : 0,
   };
 }
 
@@ -190,10 +230,13 @@ function summarizeRemaining(roster, hasLineupOrder) {
   const relevant = hasLineupOrder
     ? roster.filter((p) => p.positionSlot <= 11)
     : roster;
-  const remaining = relevant.filter((p) => p.fixtureStarted === false);
+  const yetToPlay = relevant.filter((p) => p.fixtureStarted === false);
+  const stillOnPitch = relevant.filter((p) => p.liveRemainingXp > 0);
   return {
-    count: remaining.length,
-    points: remaining.reduce((sum, p) => sum + (p.epNext ?? 0), 0),
+    count: yetToPlay.length + stillOnPitch.length,
+    points:
+      yetToPlay.reduce((sum, p) => sum + (p.epNext ?? 0), 0) +
+      stillOnPitch.reduce((sum, p) => sum + p.liveRemainingXp, 0),
   };
 }
 
@@ -234,6 +277,7 @@ async function getSharedRefData(gwOverride) {
     getFixtureMapForGw(currentEvent),
     fetchJson(`${CLASSIC_API}/bootstrap-static/`),
   ]);
+  const live = await getLiveMinutes(currentEvent, fixtureMap, classicBootstrap);
 
   return {
     bootstrap,
@@ -243,6 +287,7 @@ async function getSharedRefData(gwOverride) {
     firstGw: bootstrap.events.data[0].id,
     lastGw: bootstrap.events.data[bootstrap.events.data.length - 1].id,
     fixtureMap,
+    live,
     epNextByCode: new Map(classicBootstrap.elements.map((e) => [e.code, e.ep_next])),
     elements: new Map(bootstrap.elements.map((e) => [e.id, e])),
     teams: new Map(bootstrap.teams.map((t) => [t.id, t.short_name])),
