@@ -78,6 +78,9 @@ export default async function ClassicPage() {
                     GW{data.currentGw}
                   </th>
                   <th className="sticky top-0 whitespace-nowrap border-b border-pitch-border bg-pitch-surface px-2.5 py-2 text-right text-[10.5px] font-semibold uppercase tracking-wider text-ink-dim">
+                    Proj
+                  </th>
+                  <th className="sticky top-0 whitespace-nowrap border-b border-pitch-border bg-pitch-surface px-2.5 py-2 text-right text-[10.5px] font-semibold uppercase tracking-wider text-ink-dim">
                     Total
                   </th>
                 </tr>
@@ -104,6 +107,9 @@ export default async function ClassicPage() {
                       </td>
                       <td className="whitespace-nowrap border-b border-pitch-border px-2.5 py-2.5 text-right font-mono">
                         {s.gwPoints}
+                      </td>
+                      <td className="whitespace-nowrap border-b border-pitch-border px-2.5 py-2.5 text-right font-mono text-positive">
+                        {s.projected != null ? s.projected.toFixed(1) : "—"}
                       </td>
                       <td className="whitespace-nowrap border-b border-pitch-border px-2.5 py-2.5 text-right font-mono text-[14.5px] font-bold">
                         {s.total}
@@ -132,7 +138,8 @@ export default async function ClassicPage() {
       </div>
 
       <footer className="mt-6 text-center text-[11.5px] text-ink-dim">
-        fantasy.premierleague.com public API &middot; refreshed on every page load
+        fantasy.premierleague.com public API &middot; standings re-ranked from live
+        GW points &middot; refreshed on every page load
       </footer>
     </div>
   );

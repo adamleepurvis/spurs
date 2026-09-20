@@ -191,14 +191,33 @@ export async function getClassicDashboard() {
     (e) => new Date(e.deadline_time).getTime() > now
   );
 
-  const standings = league.standings.results.map((r) => ({
-    entryId: r.entry,
-    teamName: r.entry_name,
-    manager: r.player_name,
-    rank: r.rank,
-    gwPoints: r.event_total,
-    total: r.total,
-  }));
+  // FPL's own standings only catch up as fixtures finish, so rebuild each
+  // manager's live GW score + projection from their picks, and shift
+  // their total by the difference vs. the official GW figure.
+  const standings = (
+    await Promise.all(
+      league.standings.results.map(async (r) => {
+        const entryPicks =
+          r.entry === CLASSIC_ENTRY_ID
+            ? picks
+            : await tryFetchJson(`${CLASSIC_API}/entry/${r.entry}/event/${currentGw}/picks/`);
+        const live =
+          entryPicks?.entry_history?.event === currentGw
+            ? summarizeClassicGw(mapClassicRoster(entryPicks, ref), entryPicks)
+            : null;
+        return {
+          entryId: r.entry,
+          teamName: r.entry_name,
+          manager: r.player_name,
+          gwPoints: live?.points ?? r.event_total,
+          projected: live?.projected ?? null,
+          total: live ? r.total - r.event_total + live.points : r.total,
+        };
+      })
+    )
+  )
+    .sort((a, b) => b.total - a.total)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
 
   const roster = mapClassicRoster(picks, ref);
   const gw = summarizeClassicGw(roster, picks);
