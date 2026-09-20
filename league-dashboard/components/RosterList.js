@@ -6,7 +6,27 @@ const POSITION_LABEL = {
   FWD: "Forwards",
 };
 
+function autoSubNote(p) {
+  const isStarter = p.positionSlot != null && p.positionSlot <= 11;
+  if (p.autoSub) {
+    const { kind, with: other } = p.autoSub;
+    if (kind === "confirmed") {
+      return isStarter
+        ? { text: `↓ Didn't play — replaced by ${other}`, tone: "text-danger" }
+        : { text: `↑ Auto-sub in for ${other}`, tone: "text-positive" };
+    }
+    return isStarter
+      ? { text: `Didn't play — ${other} could replace (yet to play)`, tone: "text-gold" }
+      : { text: `Would auto-sub in for ${other} if he plays`, tone: "text-gold" };
+  }
+  if (isStarter && p.didNotPlay) {
+    return { text: "Didn't play — no eligible sub", tone: "text-danger" };
+  }
+  return null;
+}
+
 function PlayerRow({ p }) {
+  const subNote = autoSubNote(p);
   const flagged = p.status !== "a" || p.news;
   const played = p.fixtureStarted === true;
 
@@ -42,6 +62,11 @@ function PlayerRow({ p }) {
         {p.opponentTeam && (
           <span className="block text-[10.5px] font-normal text-ink-dim">
             vs {p.opponentTeam} ({p.opponentIsHome ? "H" : "A"})
+          </span>
+        )}
+        {subNote && (
+          <span className={`block text-[10.5px] font-semibold ${subNote.tone}`}>
+            {subNote.text}
           </span>
         )}
       </span>

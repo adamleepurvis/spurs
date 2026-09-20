@@ -18,6 +18,42 @@ function TeamHeader({ team, winning, align }) {
   );
 }
 
+function AutoSubCallout({ teams }) {
+  const rows = teams.flatMap((team) => [
+    ...team.autoSubs.confirmed.map((s) => ({ team, kind: "confirmed", ...s })),
+    ...team.autoSubs.pending.map((s) => ({ team, kind: "pending", ...s })),
+  ]);
+  if (!rows.length) return null;
+
+  return (
+    <div className="mb-6 rounded-md border border-gold/50 bg-pitch-surface px-4 py-3 text-sm">
+      <div className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-gold">
+        Auto-subs
+      </div>
+      <ul className="space-y-1">
+        {rows.map((r) => (
+          <li key={`${r.team.key}-${r.in.name}`} className="text-ink-dim">
+            <span className="font-semibold text-ink">{r.team.teamName}</span>:{" "}
+            {r.kind === "confirmed" ? (
+              <>
+                {r.in.name} replaces {r.out.name} &mdash;{" "}
+                <span className="font-mono font-semibold text-positive">
+                  +{r.in.eventPoints}
+                </span>
+              </>
+            ) : (
+              <>
+                {r.in.name} would replace {r.out.name} if he plays (
+                {r.in.epNext?.toFixed(1) ?? "0.0"} xPts)
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default async function MatchupDetailPage({ params, searchParams }) {
   const { matchId } = await params;
   const { gw } = await searchParams;
@@ -111,6 +147,8 @@ export default async function MatchupDetailPage({ params, searchParams }) {
           </div>
         </div>
       </div>
+
+      <AutoSubCallout teams={[team1, team2]} />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {[team1, team2].map((team) => (

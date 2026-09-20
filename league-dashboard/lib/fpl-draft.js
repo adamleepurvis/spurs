@@ -82,6 +82,7 @@ export async function getFixtureMapForGw(gw) {
       started: f.started,
       finished: f.finished,
       live: Boolean(f.started && !f.finished_provisional),
+      done: Boolean(f.started && f.finished_provisional),
     });
     map.set(f.team_a, {
       opponentTeamId: f.team_h,
@@ -89,6 +90,7 @@ export async function getFixtureMapForGw(gw) {
       started: f.started,
       finished: f.finished,
       live: Boolean(f.started && !f.finished_provisional),
+      done: Boolean(f.started && f.finished_provisional),
     });
   }
   return map;
@@ -113,11 +115,16 @@ export function liveRemainingShare(el, live) {
  * gameweek is actually live - otherwise there's nothing to project.
  */
 export async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
-  const empty = { minutesByCode: new Map(), matchMinutesByTeam: new Map() };
-  if (!Array.from(fixtureMap.values()).some((f) => f.live)) return empty;
+  const empty = {
+    available: false,
+    minutesByCode: new Map(),
+    matchMinutesByTeam: new Map(),
+  };
+  if (!Array.from(fixtureMap.values()).some((f) => f.started)) return empty;
 
   const liveData = await tryFetchJson(`${CLASSIC_API}/event/${gw}/live/`);
   if (!liveData) return empty;
+  empty.available = true;
 
   const classicById = new Map(classicBootstrap.elements.map((e) => [e.id, e]));
   for (const item of liveData.elements) {
@@ -136,8 +143,13 @@ function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live }) {
   const fixture = fixtureMap.get(el.team);
   const epNextRaw = epNextByCode.get(el.code);
   const epNext = epNextRaw != null ? Number(epNextRaw) : null;
+  const minutes = live.minutesByCode.get(el.code) ?? 0;
   return {
     code: el.code,
+    minutes,
+    // Only trust "didn't play" once their match is over (or they have no
+    // fixture at all) and we actually have minutes data to check against.
+    didNotPlay: live.available && minutes === 0 && (fixture ? fixture.done : true),
     team: teams.get(el.team),
     opponentTeam: fixture ? teams.get(fixture.opponentTeamId) : null,
     opponentIsHome: fixture?.isHome ?? null,
@@ -221,36 +233,104 @@ async function buildRoster(entryId, currentEvent, ref) {
   return { roster, hasLineupOrder: picksMatchCurrentSquad };
 }
 
+const FORMATION_LIMITS = { DEF: 3, MID: 2, FWD: 1 };
+
+function formationIsLegal(outfield) {
+  const count = (pos) => outfield.filter((p) => p.pos === pos).length;
+  return Object.entries(FORMATION_LIMITS).every(([pos, min]) => count(pos) >= min);
+}
+
+/**
+ * FPL's automatic substitutions: a starter who didn't play is replaced
+ * by the highest-priority bench player who did, provided the outfield
+ * formation stays legal (3+ DEF, 2+ MID, 1+ FWD). The backup GK only
+ * covers the starting GK. `confirmed` subs are settled (both matches
+ * are over); `pending` ones are a replacement who hasn't played yet but
+ * still could. Annotates each player's `autoSub` for display.
+ */
+function computeAutoSubs(roster, hasLineupOrder) {
+  const result = { confirmed: [], pending: [] };
+  if (!hasLineupOrder) return result;
+
+  const bySlot = (a, b) => a.positionSlot - b.positionSlot;
+  const starters = roster.filter((p) => p.positionSlot <= 11).sort(bySlot);
+  const bench = roster.filter((p) => p.positionSlot > 11).sort(bySlot);
+  const missing = starters.filter((p) => p.didNotPlay);
+  if (!missing.length) return result;
+
+  const outfield = starters.filter((p) => p.pos !== "GKP");
+  const usedSubs = new Set();
+  const replaced = new Set();
+
+  const tryPair = (out, sub, kind) => {
+    if (out.pos === "GKP" || sub.pos === "GKP") {
+      if (out.pos !== sub.pos) return false;
+    } else {
+      const next = outfield.map((p) => (p === out ? sub : p));
+      if (!formationIsLegal(next)) return false;
+      outfield.splice(outfield.indexOf(out), 1, sub);
+    }
+    usedSubs.add(sub);
+    replaced.add(out);
+    result[kind].push({ out, in: sub });
+    out.autoSub = { kind, with: sub.name };
+    sub.autoSub = { kind, with: out.name };
+    return true;
+  };
+
+  // Settled subs first (in bench order), then anyone who could still come on.
+  const canStillPlay = (p) => p.minutes === 0 && !p.didNotPlay && p.fixtureStarted === false;
+  for (const sub of bench) {
+    if (sub.minutes <= 0) continue;
+    for (const out of missing) {
+      if (!replaced.has(out) && tryPair(out, sub, "confirmed")) break;
+    }
+  }
+  for (const sub of bench) {
+    if (usedSubs.has(sub) || !canStillPlay(sub)) continue;
+    for (const out of missing) {
+      if (!replaced.has(out) && tryPair(out, sub, "pending")) break;
+    }
+  }
+  return result;
+}
+
 /**
  * A roster's "remaining" upside: among starters (or the full squad when
  * lineup order isn't published yet), how many haven't kicked off yet
- * this gameweek, and how many expected points are still on the pitch.
+ * this gameweek, how many are mid-match, and how many expected points
+ * are still on the pitch for them - plus any not-yet-played bench
+ * player who is lined up to auto-sub in.
  */
-function summarizeRemaining(roster, hasLineupOrder) {
+function summarizeRemaining(roster, hasLineupOrder, autoSubs) {
   const relevant = hasLineupOrder
     ? roster.filter((p) => p.positionSlot <= 11)
     : roster;
   const yetToPlay = relevant.filter((p) => p.fixtureStarted === false);
   const stillOnPitch = relevant.filter((p) => p.liveRemainingXp > 0);
+  const pendingSubs = (autoSubs?.pending ?? []).map((s) => s.in);
   return {
-    count: yetToPlay.length + stillOnPitch.length,
+    count: yetToPlay.length + stillOnPitch.length + pendingSubs.length,
     points:
       yetToPlay.reduce((sum, p) => sum + (p.epNext ?? 0), 0) +
-      stillOnPitch.reduce((sum, p) => sum + p.liveRemainingXp, 0),
+      stillOnPitch.reduce((sum, p) => sum + p.liveRemainingXp, 0) +
+      pendingSubs.reduce((sum, p) => sum + (p.epNext ?? 0), 0),
   };
 }
 
 /**
  * The league's official match score only catches up as fixtures finish,
  * so mid-gameweek it lags what the players have actually scored. Until
- * the match is final, use the live sum of the starting XI's points.
- * (Auto-subs for non-playing starters only apply once it's final.)
+ * the match is final, use the live sum of the starting XI's points plus
+ * any auto-subs already settled.
  */
-function liveScore(roster, hasLineupOrder, officialPoints, matchFinished) {
+function liveScore(roster, hasLineupOrder, officialPoints, matchFinished, autoSubs) {
   if (matchFinished || !hasLineupOrder) return officialPoints;
-  return roster
+  const starterPoints = roster
     .filter((p) => p.positionSlot <= 11)
     .reduce((sum, p) => sum + (p.eventPoints ?? 0), 0);
+  const subPoints = autoSubs.confirmed.reduce((sum, s) => sum + (s.in.eventPoints ?? 0), 0);
+  return starterPoints + subPoints;
 }
 
 /**
@@ -384,17 +464,20 @@ async function summarizeSide(ref, leagueEntryId, officialPoints, matchFinished) 
       points: officialPoints,
       roster: [],
       hasLineupOrder: false,
+      autoSubs: { confirmed: [], pending: [] },
       remaining: { count: 0, points: 0 },
       expectedTotal: 0,
     };
   }
   const { roster, hasLineupOrder } = await buildRoster(entry.entry_id, ref.currentEvent, ref);
+  const autoSubs = computeAutoSubs(roster, hasLineupOrder);
   return {
     ...base,
-    points: liveScore(roster, hasLineupOrder, officialPoints, matchFinished),
+    points: liveScore(roster, hasLineupOrder, officialPoints, matchFinished, autoSubs),
     roster,
     hasLineupOrder,
-    remaining: summarizeRemaining(roster, hasLineupOrder),
+    autoSubs,
+    remaining: summarizeRemaining(roster, hasLineupOrder, autoSubs),
     expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
   };
 }
