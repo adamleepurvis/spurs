@@ -27,6 +27,7 @@ const SECTIONS = {
 
 export default function NavBar() {
   const pathname = usePathname();
+  if (pathname.startsWith("/share")) return null;
   const activeKey = pathname.startsWith("/classic") ? "classic" : "draft";
 
   return (

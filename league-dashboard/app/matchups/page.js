@@ -50,8 +50,9 @@ function TeamSide({ team, points, winning, align }) {
   );
 }
 
-function MatchCard({ match, gw }) {
-  const { team1, team2, started, finished, involvesMe } = match;
+function MatchCard({ match, gw, basePath, shared }) {
+  const { team1, team2, started, finished } = match;
+  const involvesMe = match.involvesMe && !shared;
   const team1Winning = started && team1.points > team2.points;
   const team2Winning = started && team2.points > team1.points;
 
@@ -64,7 +65,7 @@ function MatchCard({ match, gw }) {
 
   return (
     <Link
-      href={`/matchups/${team1.key}-${team2.key}?gw=${gw}`}
+      href={`${basePath}/${team1.key}-${team2.key}?gw=${gw}`}
       className={`block rounded-md border bg-pitch-surface p-5 shadow-lg transition-colors hover:bg-pitch-surface2 ${
         involvesMe ? "border-gold/70 shadow-[0_0_0_1px_rgba(242,181,68,0.3)]" : "border-pitch-border"
       }`}
@@ -116,11 +117,11 @@ function MatchCard({ match, gw }) {
   );
 }
 
-function GwNav({ gw, firstGw, lastGw, liveGw }) {
+function GwNav({ gw, firstGw, lastGw, liveGw, basePath }) {
   return (
     <div className="flex items-center gap-2">
       <Link
-        href={gw > firstGw ? `/matchups?gw=${gw - 1}` : "#"}
+        href={gw > firstGw ? `${basePath}?gw=${gw - 1}` : "#"}
         aria-disabled={gw <= firstGw}
         className={`rounded bg-pitch-surface2 px-2.5 py-1 font-display text-sm font-bold ${
           gw <= firstGw ? "pointer-events-none opacity-30" : "hover:bg-pitch-border"
@@ -132,7 +133,7 @@ function GwNav({ gw, firstGw, lastGw, liveGw }) {
         GW{gw}
       </span>
       <Link
-        href={gw < lastGw ? `/matchups?gw=${gw + 1}` : "#"}
+        href={gw < lastGw ? `${basePath}?gw=${gw + 1}` : "#"}
         aria-disabled={gw >= lastGw}
         className={`rounded bg-pitch-surface2 px-2.5 py-1 font-display text-sm font-bold ${
           gw >= lastGw ? "pointer-events-none opacity-30" : "hover:bg-pitch-border"
@@ -142,7 +143,7 @@ function GwNav({ gw, firstGw, lastGw, liveGw }) {
       </Link>
       {gw !== liveGw && (
         <Link
-          href="/matchups"
+          href={basePath}
           className="ml-1 text-[11px] font-semibold uppercase tracking-wide text-gold hover:underline"
         >
           This week
@@ -152,7 +153,11 @@ function GwNav({ gw, firstGw, lastGw, liveGw }) {
   );
 }
 
-export default async function MatchupsPage({ searchParams }) {
+export default async function MatchupsPage({
+  searchParams,
+  basePath = "/matchups",
+  shared = false,
+}) {
   const params = await searchParams;
   const gwParam = Number(params?.gw);
   const data = await getMatchups(Number.isInteger(gwParam) ? gwParam : undefined);
@@ -171,12 +176,19 @@ export default async function MatchupsPage({ searchParams }) {
           firstGw={data.firstGw}
           lastGw={data.lastGw}
           liveGw={data.liveGw}
+          basePath={basePath}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {data.matches.map((match, i) => (
-          <MatchCard key={i} match={match} gw={data.currentGw} />
+          <MatchCard
+            key={i}
+            match={match}
+            gw={data.currentGw}
+            basePath={basePath}
+            shared={shared}
+          />
         ))}
       </div>
 

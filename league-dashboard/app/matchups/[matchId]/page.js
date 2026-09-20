@@ -54,7 +54,11 @@ function AutoSubCallout({ teams }) {
   );
 }
 
-export default async function MatchupDetailPage({ params, searchParams }) {
+export default async function MatchupDetailPage({
+  params,
+  searchParams,
+  basePath = "/matchups",
+}) {
   const { matchId } = await params;
   const { gw } = await searchParams;
   const [keyA, keyB, ...extra] = matchId.split("-");
@@ -84,7 +88,7 @@ export default async function MatchupDetailPage({ params, searchParams }) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
       <Link
-        href={`/matchups?gw=${data.currentGw}`}
+        href={`${basePath}?gw=${data.currentGw}`}
         className="mb-4 inline-block text-xs font-semibold uppercase tracking-wide text-ink-dim hover:text-ink"
       >
         &larr; All matchups
