@@ -1,5 +1,6 @@
 import { getClassicDashboard } from "@/lib/fpl-classic";
 import ClassicRosterList from "@/components/ClassicRosterList";
+import ClassicCaptainCard from "@/components/ClassicCaptainCard";
 import ClassicGwStrip from "@/components/ClassicGwStrip";
 import ClickableRow from "@/components/ClickableRow";
 
@@ -55,6 +56,8 @@ export default async function ClassicPage() {
       </div>
 
       <ClassicGwStrip gw={data.currentGw} summary={data.gwSummary} />
+
+      <ClassicCaptainCard gw={data.currentGw} picks={data.captainPicks} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <section className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg">

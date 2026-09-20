@@ -132,6 +132,53 @@ function summarizeClassicGw(roster, picks) {
 }
 
 /**
+ * Captain / vice-captain suggestion from each player's expected points
+ * for the gameweek. The captain is simply the top xPts player who's
+ * fit; the vice is the best fit player from a *different club*, since
+ * the vice only matters if the captain doesn't play and two players in
+ * the same match tend to share that risk (postponement, both benched).
+ * Once the gameweek's first kickoff has passed the choice is locked.
+ */
+function suggestCaptains(roster, locked) {
+  const fit = (p) => p.status === "a" || p.status === "d";
+  const ranked = roster
+    .filter((p) => p.epNext != null)
+    .sort((a, b) => b.epNext - a.epNext);
+  const eligible = ranked.filter(fit);
+
+  const captain = eligible[0] ?? null;
+  const vice = eligible.find((p) => p !== captain && p.team !== captain?.team) ?? null;
+  const currentCaptain = roster.find((p) => p.isCaptain) ?? null;
+  const currentVice = roster.find((p) => p.isViceCaptain) ?? null;
+
+  const pick = (p) => p && {
+    name: p.name,
+    team: p.team,
+    pos: p.pos,
+    epNext: p.epNext,
+    opponentTeam: p.opponentTeam,
+    opponentIsHome: p.opponentIsHome,
+    status: p.status,
+    news: p.news,
+    isBench: p.positionSlot > 11,
+  };
+
+  return {
+    locked,
+    captain: pick(captain),
+    vice: pick(vice),
+    currentCaptain: pick(currentCaptain),
+    currentVice: pick(currentVice),
+    // Captaining doubles the player, so the extra is one more copy of them.
+    gain:
+      captain && currentCaptain && captain !== currentCaptain
+        ? captain.epNext - (currentCaptain.epNext ?? 0)
+        : 0,
+    alternatives: ranked.slice(0, 6).map(pick),
+  };
+}
+
+/**
  * Same fix as the draft side: `is_current` lags behind on FPL's end
  * even after the gameweek has fully finished, so derive it from
  * "first gameweek not yet finished" instead of trusting the flag.
@@ -231,6 +278,10 @@ export async function getClassicDashboard() {
     nextGwDeadline: formatDeadline(nextEvent?.deadline_time),
     gwPoints: picksAreForCurrentGw ? gw.points : (picks?.entry_history?.points ?? null),
     gwSummary: picksAreForCurrentGw ? gw : null,
+    captainPicks: suggestCaptains(
+      roster,
+      Array.from(ref.fixtureMap.values()).some((f) => f.started)
+    ),
     totalPoints: picks?.entry_history?.total_points ?? null,
     overallRank: picks?.entry_history?.overall_rank ?? null,
     bank: (picks?.entry_history?.bank ?? 0) / 10,
