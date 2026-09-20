@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function SharedMatchupDetailPage(props) {
-  return <MatchupDetailPage {...props} basePath="/share/matchups" />;
+  return <MatchupDetailPage {...props} basePath="/league/matchups" />;
 }
