@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMatchupDetail } from "@/lib/fpl-draft";
 import RosterList from "@/components/RosterList";
+import MatchStatusBadge from "@/components/MatchStatusBadge";
 import RefreshOnFocus from "@/components/RefreshOnFocus";
 
 const fmtPoints = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
@@ -98,17 +99,11 @@ export default async function MatchupDetailPage({
 
       <div className="mb-6 rounded-md border border-pitch-border bg-pitch-surface p-5 shadow-lg sm:p-6">
         <div className="mb-3 flex items-center justify-between">
-          <span
-            className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-              finished
-                ? "bg-ink text-pitch-bg"
-                : started
-                  ? "bg-danger/20 text-danger"
-                  : "bg-pitch-surface2 text-ink-dim"
-            }`}
-          >
-            {finished ? "Final" : started ? "Live" : "Upcoming"}
-          </span>
+          <MatchStatusBadge
+            started={started}
+            finished={finished}
+            fixtureStatus={data.fixtureStatus}
+          />
           <span className="font-display text-sm font-bold text-ink-dim">
             GW{data.currentGw}
           </span>

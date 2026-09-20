@@ -1,31 +1,9 @@
 import Link from "next/link";
 import { getMatchups } from "@/lib/fpl-draft";
+import MatchStatusBadge from "@/components/MatchStatusBadge";
 import RefreshOnFocus from "@/components/RefreshOnFocus";
 
 const fmtPoints = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
-
-function StatusBadge({ started, finished }) {
-  if (finished) {
-    return (
-      <span className="rounded bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-pitch-bg">
-        Final
-      </span>
-    );
-  }
-  if (started) {
-    return (
-      <span className="flex items-center gap-1.5 rounded bg-danger/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-danger">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" />
-        Live
-      </span>
-    );
-  }
-  return (
-    <span className="rounded bg-pitch-surface2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-dim">
-      Upcoming
-    </span>
-  );
-}
 
 function TeamSide({ team, points, winning, align }) {
   return (
@@ -51,7 +29,7 @@ function TeamSide({ team, points, winning, align }) {
   );
 }
 
-function MatchCard({ match, gw, basePath, shared, isPast }) {
+function MatchCard({ match, gw, basePath, shared, isPast, fixtureStatus }) {
   const { team1, team2, started, finished } = match;
   const involvesMe = match.involvesMe && !shared;
   const team1Winning = started && team1.points > team2.points;
@@ -72,7 +50,7 @@ function MatchCard({ match, gw, basePath, shared, isPast }) {
       }`}
     >
       <div className="mb-4 flex items-center justify-between">
-        <StatusBadge started={started} finished={finished} />
+        <MatchStatusBadge started={started} finished={finished} fixtureStatus={fixtureStatus} />
         {involvesMe && (
           <span className="text-[10px] font-bold uppercase tracking-wider text-gold">
             Your match
@@ -193,6 +171,7 @@ export default async function MatchupsPage({
             basePath={basePath}
             shared={shared}
             isPast={data.isPast}
+            fixtureStatus={data.fixtureStatus}
           />
         ))}
       </div>

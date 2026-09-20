@@ -483,6 +483,19 @@ export async function getDraftDashboard() {
 }
 
 /**
+ * What the gameweek's real fixtures are doing right now. A league match
+ * stays "started, not finished" until FPL finalises the gameweek (after
+ * the last game, once bonus points and auto-subs are settled), which can
+ * be long after the final whistle - so "live" has to come from fixtures.
+ */
+function fixtureStatus(fixtureMap) {
+  const fixtures = Array.from(fixtureMap.values());
+  if (fixtures.some((f) => f.live)) return "live";
+  if (fixtures.length && fixtures.every((f) => f.done)) return "fulltime";
+  return "between";
+}
+
+/**
  * One side of a head-to-head match with live score, remaining upside and
  * xPts baseline. Autopick teams (no real entry behind them) get a
  * placeholder here that fillAutopickAverages() completes.
@@ -593,6 +606,7 @@ export async function getMatchups(gwOverride) {
     currentGw: currentEvent,
     liveGw: ref.liveGw,
     isPast: ref.isPast,
+    fixtureStatus: fixtureStatus(ref.fixtureMap),
     firstGw: ref.firstGw,
     lastGw: ref.lastGw,
     matches,
@@ -644,6 +658,7 @@ export async function getMatchupDetail(keyA, keyB, gwOverride) {
     leagueName: league.league.name,
     currentGw: currentEvent,
     isPast: ref.isPast,
+    fixtureStatus: fixtureStatus(ref.fixtureMap),
     started: match.started,
     finished: match.finished,
     team1: sideFor(match.league_entry_1),
