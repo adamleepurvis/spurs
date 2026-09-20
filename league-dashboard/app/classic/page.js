@@ -1,5 +1,6 @@
 import { getClassicDashboard } from "@/lib/fpl-classic";
 import ClassicRosterList from "@/components/ClassicRosterList";
+import ClassicGwStrip from "@/components/ClassicGwStrip";
 import ClickableRow from "@/components/ClickableRow";
 
 export default async function ClassicPage() {
@@ -33,11 +34,10 @@ export default async function ClassicPage() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-pitch-border bg-pitch-border shadow-lg sm:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-pitch-border bg-pitch-border shadow-lg sm:grid-cols-4">
         {[
           ["Overall rank", data.overallRank?.toLocaleString() ?? "—"],
           ["Total points", data.totalPoints ?? "—", true],
-          [`GW${data.currentGw} points`, data.gwPoints ?? "—"],
           ["Team value", `£${data.value.toFixed(1)}m`],
           ["In the bank", `£${data.bank.toFixed(1)}m`],
         ].map(([label, value, accent]) => (
@@ -53,6 +53,8 @@ export default async function ClassicPage() {
           </div>
         ))}
       </div>
+
+      <ClassicGwStrip gw={data.currentGw} summary={data.gwSummary} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <section className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg">

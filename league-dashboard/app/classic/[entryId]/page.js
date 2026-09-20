@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClassicTeamRoster } from "@/lib/fpl-classic";
+import ClassicGwStrip from "@/components/ClassicGwStrip";
 import ClassicRosterList from "@/components/ClassicRosterList";
 
 export default async function ClassicTeamPage({ params }) {
@@ -28,6 +29,8 @@ export default async function ClassicTeamPage({ params }) {
           GW{data.currentGw}
         </span>
       </div>
+
+      <ClassicGwStrip gw={data.currentGw} summary={data.gwSummary} />
 
       <section className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg">
         <div className="flex items-baseline justify-between border-b border-pitch-border px-4.5 py-4">

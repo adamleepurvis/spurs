@@ -1,3 +1,5 @@
+import { getFixtureMapForGw, getLiveMinutes, liveRemainingShare } from "./fpl-draft";
+
 const CLASSIC_API = "https://fantasy.premierleague.com/api";
 
 export const CLASSIC_LEAGUE_ID = process.env.FPL_CLASSIC_LEAGUE_ID ?? "867431";
@@ -65,9 +67,11 @@ function formatDeadline(iso) {
   });
 }
 
-function mapClassicRoster(picks, { elements, teams, positions }) {
+function mapClassicRoster(picks, { elements, teams, positions, fixtureMap, live }) {
   return (picks?.picks ?? []).map((p) => {
     const el = elements.get(p.element);
+    const fixture = fixtureMap.get(el.team);
+    const epNext = el.ep_next != null ? Number(el.ep_next) : null;
     return {
       name: el.web_name,
       pos: positions.get(el.element_type),
@@ -82,8 +86,49 @@ function mapClassicRoster(picks, { elements, teams, positions }) {
       isViceCaptain: p.is_vice_captain,
       multiplier: p.multiplier,
       positionSlot: p.position,
+      opponentTeam: fixture ? teams.get(fixture.opponentTeamId) : null,
+      opponentIsHome: fixture?.isHome ?? null,
+      fixtureStarted: fixture?.started ?? null,
+      fixtureLive: fixture?.live ?? false,
+      epNext,
+      liveRemainingXp:
+        fixture?.live && epNext != null ? epNext * liveRemainingShare(el, live) : 0,
     };
   });
+}
+
+/**
+ * Live gameweek picture for one squad: points so far (captain / chip
+ * multipliers applied, minus any transfer hit), the pregame xPts
+ * baseline, and the projection = points so far + what's still to come
+ * from players yet to kick off or mid-match. Vice-captain promotion and
+ * auto-subs only take effect once the gameweek is final, so they aren't
+ * modeled here.
+ */
+function summarizeClassicGw(roster, picks) {
+  const hit = picks?.entry_history?.event_transfers_cost ?? 0;
+  const counted = roster.filter((p) => p.multiplier > 0);
+
+  const points = counted.reduce((sum, p) => sum + p.eventPoints * p.multiplier, 0) - hit;
+  const expectedTotal = counted.reduce((sum, p) => sum + (p.epNext ?? 0) * p.multiplier, 0) - hit;
+
+  let remainingPoints = 0;
+  let remainingCount = 0;
+  for (const p of counted) {
+    const left =
+      p.fixtureStarted === false ? (p.epNext ?? 0) : p.liveRemainingXp;
+    if (left > 0) {
+      remainingPoints += left * p.multiplier;
+      remainingCount += 1;
+    }
+  }
+
+  return {
+    points,
+    expectedTotal,
+    remaining: { count: remainingCount, points: remainingPoints },
+    projected: points + remainingPoints,
+  };
 }
 
 /**
@@ -100,9 +145,13 @@ function resolveCurrentGw(events) {
 async function getClassicRefData() {
   const bootstrap = await fetchJson(`${CLASSIC_API}/bootstrap-static/`);
   const currentGw = resolveCurrentGw(bootstrap.events);
+  const fixtureMap = currentGw ? await getFixtureMapForGw(currentGw) : new Map();
+  const live = await getLiveMinutes(currentGw, fixtureMap, bootstrap);
   return {
     bootstrap,
     currentGw,
+    fixtureMap,
+    live,
     elements: new Map(bootstrap.elements.map((e) => [e.id, e])),
     teams: new Map(bootstrap.teams.map((t) => [t.id, t.short_name])),
     positions: new Map(bootstrap.element_types.map((t) => [t.id, t.singular_name_short])),
@@ -151,19 +200,24 @@ export async function getClassicDashboard() {
     total: r.total,
   }));
 
+  const roster = mapClassicRoster(picks, ref);
+  const gw = summarizeClassicGw(roster, picks);
+  const picksAreForCurrentGw = picks?.entry_history?.event === currentGw;
+
   return {
     leagueName: league.league.name,
     myEntryId: CLASSIC_ENTRY_ID,
     currentGw,
     nextGwName: nextEvent?.name ?? null,
     nextGwDeadline: formatDeadline(nextEvent?.deadline_time),
-    gwPoints: picks?.entry_history?.points ?? null,
+    gwPoints: picksAreForCurrentGw ? gw.points : (picks?.entry_history?.points ?? null),
+    gwSummary: picksAreForCurrentGw ? gw : null,
     totalPoints: picks?.entry_history?.total_points ?? null,
     overallRank: picks?.entry_history?.overall_rank ?? null,
     bank: (picks?.entry_history?.bank ?? 0) / 10,
     value: (picks?.entry_history?.value ?? 0) / 10,
     standings,
-    roster: mapClassicRoster(picks, ref),
+    roster,
     hasLineupOrder: Boolean(picks?.picks?.length),
   };
 }
@@ -182,11 +236,14 @@ export async function getClassicTeamRoster(entryId) {
   ]);
   if (!entryInfo) return null;
 
+  const roster = mapClassicRoster(picks, ref);
+
   return {
     teamName: entryInfo.name,
     manager: `${entryInfo.player_first_name} ${entryInfo.player_last_name}`,
     currentGw,
-    roster: mapClassicRoster(picks, ref),
+    gwSummary: picks?.entry_history?.event === currentGw ? summarizeClassicGw(roster, picks) : null,
+    roster,
     hasLineupOrder: Boolean(picks?.picks?.length),
   };
 }

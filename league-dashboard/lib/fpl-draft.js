@@ -72,7 +72,7 @@ function formatDeadline(iso) {
  * gameweek. Uses the classic FPL API since the draft API's own
  * bootstrap.fixtures drops a gameweek once it becomes current.
  */
-async function getFixtureMapForGw(gw) {
+export async function getFixtureMapForGw(gw) {
   const fixtures = await fetchJson(`${CLASSIC_API}/fixtures/?event=${gw}`);
   const map = new Map();
   for (const f of fixtures) {
@@ -100,7 +100,7 @@ async function getFixtureMapForGw(gw) {
  * the most minutes any player on that side has logged), or zero if
  * they've already come off. Ignores stoppage time and future subs.
  */
-function liveRemainingShare(el, live) {
+export function liveRemainingShare(el, live) {
   const minutes = live.minutesByCode.get(el.code) ?? 0;
   const matchMinutes = live.matchMinutesByTeam.get(el.team) ?? 0;
   if (minutes < matchMinutes - 5) return 0;
@@ -112,7 +112,7 @@ function liveRemainingShare(el, live) {
  * estimated match clock per team. Only fetched when some fixture in the
  * gameweek is actually live - otherwise there's nothing to project.
  */
-async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
+export async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
   const empty = { minutesByCode: new Map(), matchMinutesByTeam: new Map() };
   if (!Array.from(fixtureMap.values()).some((f) => f.live)) return empty;
 

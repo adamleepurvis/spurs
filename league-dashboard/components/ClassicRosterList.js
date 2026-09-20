@@ -8,7 +8,9 @@ const POSITION_LABEL = {
 
 function PlayerRow({ p }) {
   const flagged = p.status !== "a" || p.news;
-  const displayed = p.eventPoints * p.multiplier;
+  const mult = p.multiplier > 0 ? p.multiplier : 1;
+  const played = p.fixtureStarted === true;
+  const displayed = p.eventPoints * mult;
   return (
     <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-pitch-border last:border-b-0">
       <span className="min-w-9 rounded bg-pitch-surface2 px-1.5 py-0.5 text-center font-mono text-[10.5px] text-ink-dim">
@@ -26,6 +28,12 @@ function PlayerRow({ p }) {
             V
           </span>
         )}
+        {p.fixtureLive && (
+          <span
+            title="Match in progress"
+            className="ml-1.5 inline-block h-[7px] w-[7px] animate-pulse rounded-full bg-positive align-middle"
+          />
+        )}
         {flagged && (
           <span
             title={p.news || "Fitness concern"}
@@ -33,12 +41,32 @@ function PlayerRow({ p }) {
           />
         )}
         <span className="block text-[10.5px] font-normal text-ink-dim">
-          £{p.cost.toFixed(1)}m
+          {p.opponentTeam && (
+            <>
+              vs {p.opponentTeam} ({p.opponentIsHome ? "H" : "A"}) &middot;{" "}
+            </>
+          )}
+          £{p.cost.toFixed(1)}m &middot; {p.totalPoints} tot
         </span>
       </span>
-      <span className="min-w-11 text-right font-mono">
-        <span className="block text-sm font-semibold">{displayed}</span>
-        <span className="block text-[10px] text-ink-dim">{p.totalPoints} tot</span>
+      <span className="min-w-16 text-right font-mono">
+        {played ? (
+          <span className="block text-sm font-semibold">{displayed}</span>
+        ) : (
+          <span className="block text-[11px] italic text-ink-dim">Yet to play</span>
+        )}
+        {p.fixtureLive ? (
+          <span
+            title="Live projection: points so far + pre-match xPts scaled by time left"
+            className="block text-[10px] text-positive"
+          >
+            {((p.eventPoints + p.liveRemainingXp) * mult).toFixed(1)} proj
+          </span>
+        ) : (
+          <span className="block text-[10px] text-ink-dim">
+            {p.epNext != null ? (p.epNext * mult).toFixed(1) : "—"} xPts
+          </span>
+        )}
       </span>
     </div>
   );
