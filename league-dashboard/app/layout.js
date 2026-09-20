@@ -1,4 +1,5 @@
 import { Oswald, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import NavBar from "@/components/NavBar";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-full bg-pitch-bg text-ink font-body antialiased">
         <NavBar />
         {children}
+        <Analytics />
       </body>
     </html>
   );
