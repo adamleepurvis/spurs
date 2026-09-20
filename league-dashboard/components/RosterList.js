@@ -27,6 +27,12 @@ function PlayerRow({ p }) {
             V
           </span>
         )}
+        {p.fixtureLive && (
+          <span
+            title="Match in progress"
+            className="ml-1.5 inline-block h-[7px] w-[7px] animate-pulse rounded-full bg-positive align-middle"
+          />
+        )}
         {flagged && (
           <span
             title={p.news || "Fitness concern"}

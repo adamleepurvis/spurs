@@ -81,12 +81,14 @@ async function getFixtureMapForGw(gw) {
       isHome: true,
       started: f.started,
       finished: f.finished,
+      live: Boolean(f.started && !f.finished_provisional),
     });
     map.set(f.team_a, {
       opponentTeamId: f.team_h,
       isHome: false,
       started: f.started,
       finished: f.finished,
+      live: Boolean(f.started && !f.finished_provisional),
     });
   }
   return map;
@@ -102,6 +104,7 @@ function enrichPlayer(el, { teams, fixtureMap, epNextByCode }) {
     opponentIsHome: fixture?.isHome ?? null,
     fixtureStarted: fixture?.started ?? null,
     fixtureFinished: fixture?.finished ?? null,
+    fixtureLive: fixture?.live ?? false,
     epNext: epNextRaw != null ? Number(epNextRaw) : null,
   };
 }
