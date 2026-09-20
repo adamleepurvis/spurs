@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getMatchups } from "@/lib/fpl-draft";
+import RefreshOnFocus from "@/components/RefreshOnFocus";
 
 const fmtPoints = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
 
@@ -166,6 +167,7 @@ export default async function MatchupsPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
+      <RefreshOnFocus />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-5 border-b-[3px] border-ink pb-5">
         <div>
           <h1 className="font-display text-[clamp(30px,5vw,46px)] font-bold leading-[0.95] tracking-wide">

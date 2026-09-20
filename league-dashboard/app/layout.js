@@ -24,6 +24,13 @@ const plexMono = IBM_Plex_Mono({
 export const metadata = {
   title: "familia de nuñez — League Status",
   description: "Live standings and squad status for the FPL Draft league",
+  applicationName: "17th",
+  appleWebApp: { capable: true, title: "17th", statusBarStyle: "black" },
+  icons: { apple: "/apple-touch-icon.png" },
+};
+
+export const viewport = {
+  themeColor: "#0a0f1e",
 };
 
 export default function RootLayout({ children }) {

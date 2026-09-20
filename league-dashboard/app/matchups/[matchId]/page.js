@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMatchupDetail } from "@/lib/fpl-draft";
 import RosterList from "@/components/RosterList";
+import RefreshOnFocus from "@/components/RefreshOnFocus";
 
 const fmtPoints = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
 
@@ -87,6 +88,7 @@ export default async function MatchupDetailPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
+      <RefreshOnFocus />
       <Link
         href={`${basePath}?gw=${data.currentGw}`}
         className="mb-4 inline-block text-xs font-semibold uppercase tracking-wide text-ink-dim hover:text-ink"
