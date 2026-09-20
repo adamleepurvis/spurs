@@ -241,6 +241,19 @@ function summarizeRemaining(roster, hasLineupOrder) {
 }
 
 /**
+ * The league's official match score only catches up as fixtures finish,
+ * so mid-gameweek it lags what the players have actually scored. Until
+ * the match is final, use the live sum of the starting XI's points.
+ * (Auto-subs for non-playing starters only apply once it's final.)
+ */
+function liveScore(roster, hasLineupOrder, officialPoints, matchFinished) {
+  if (matchFinished || !hasLineupOrder) return officialPoints;
+  return roster
+    .filter((p) => p.positionSlot <= 11)
+    .reduce((sum, p) => sum + (p.eventPoints ?? 0), 0);
+}
+
+/**
  * The pregame baseline: sum of every starter's expected points for the
  * gameweek, regardless of whether they've since played. Fixed for the
  * whole gameweek, unlike the live score or the "remaining" projection.
@@ -371,7 +384,7 @@ export async function getMatchups(gwOverride) {
     };
   };
 
-  const withRemaining = async (leagueEntryId, points) => {
+  const withRemaining = async (leagueEntryId, points, matchFinished) => {
     const info = teamInfo(leagueEntryId);
     if (!info.entryId) {
       return { ...info, points, remaining: { count: 0, points: 0 }, expectedTotal: 0 };
@@ -379,7 +392,7 @@ export async function getMatchups(gwOverride) {
     const { roster, hasLineupOrder } = await buildRoster(info.entryId, currentEvent, ref);
     return {
       ...info,
-      points,
+      points: liveScore(roster, hasLineupOrder, points, matchFinished),
       remaining: summarizeRemaining(roster, hasLineupOrder),
       expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
     };
@@ -390,8 +403,8 @@ export async function getMatchups(gwOverride) {
   const matches = await Promise.all(
     relevantMatches.map(async (m) => {
       const [team1, team2] = await Promise.all([
-        withRemaining(m.league_entry_1, m.league_entry_1_points),
-        withRemaining(m.league_entry_2, m.league_entry_2_points),
+        withRemaining(m.league_entry_1, m.league_entry_1_points, m.finished),
+        withRemaining(m.league_entry_2, m.league_entry_2_points, m.finished),
       ]);
       return {
         team1,
@@ -436,7 +449,7 @@ export async function getMatchupDetail(entryIdA, entryIdB, gwOverride) {
 
   if (!match) return null;
 
-  const buildSide = async (leagueEntryId, points) => {
+  const buildSide = async (leagueEntryId, officialPoints) => {
     const entry = entries.get(leagueEntryId);
     const { roster, hasLineupOrder } = await buildRoster(
       entry.entry_id,
@@ -449,7 +462,7 @@ export async function getMatchupDetail(entryIdA, entryIdB, gwOverride) {
       manager: entry.player_first_name
         ? `${entry.player_first_name} ${entry.player_last_name}`
         : "—",
-      points,
+      points: liveScore(roster, hasLineupOrder, officialPoints, match.finished),
       roster,
       hasLineupOrder,
       remaining: summarizeRemaining(roster, hasLineupOrder),
