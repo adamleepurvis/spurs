@@ -362,6 +362,67 @@ export async function getDraftDashboard() {
 }
 
 /**
+ * One side of a head-to-head match with live score, remaining upside and
+ * xPts baseline. Autopick teams (no real entry behind them) get a
+ * placeholder here that fillAutopickAverages() completes.
+ */
+async function summarizeSide(ref, leagueEntryId, officialPoints, matchFinished) {
+  const entry = ref.entries.get(leagueEntryId);
+  const base = {
+    leagueEntryId,
+    entryId: entry?.entry_id ?? null,
+    key: String(entry?.entry_id ?? `L${leagueEntryId}`),
+    isAutopick: !entry?.entry_id,
+    teamName: entry?.entry_name || `Autopick (${entry?.short_name ?? "?"})`,
+    manager: entry?.player_first_name
+      ? `${entry.player_first_name} ${entry.player_last_name}`
+      : "—",
+  };
+  if (!entry?.entry_id) {
+    return {
+      ...base,
+      points: officialPoints,
+      roster: [],
+      hasLineupOrder: false,
+      remaining: { count: 0, points: 0 },
+      expectedTotal: 0,
+    };
+  }
+  const { roster, hasLineupOrder } = await buildRoster(entry.entry_id, ref.currentEvent, ref);
+  return {
+    ...base,
+    points: liveScore(roster, hasLineupOrder, officialPoints, matchFinished),
+    roster,
+    hasLineupOrder,
+    remaining: summarizeRemaining(roster, hasLineupOrder),
+    expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
+  };
+}
+
+/**
+ * Autopick teams have no roster, so they stand in for the league
+ * average: their live points, xPts baseline and remaining upside are the
+ * mean of every real team's, which makes their projection the average
+ * projection too.
+ */
+function fillAutopickAverages(sides) {
+  const real = sides.filter((s) => !s.isAutopick);
+  if (!real.length) return;
+  const avg = (fn) => real.reduce((sum, s) => sum + fn(s), 0) / real.length;
+  const averages = {
+    points: avg((s) => s.points),
+    expectedTotal: avg((s) => s.expectedTotal),
+    remaining: {
+      count: Math.round(avg((s) => s.remaining.count)),
+      points: avg((s) => s.remaining.points),
+    },
+  };
+  for (const s of sides) {
+    if (s.isAutopick) Object.assign(s, averages);
+  }
+}
+
+/**
  * Head-to-head matchups for the current (or most recently started)
  * gameweek, with team/manager names resolved, each entry's live total
  * flagged against its official league_entry_X_points snapshot (which
@@ -373,38 +434,13 @@ export async function getMatchups(gwOverride) {
   const ref = await getSharedRefData(gwOverride);
   const { league, entries, currentEvent } = ref;
 
-  const teamInfo = (leagueEntryId) => {
-    const entry = entries.get(leagueEntryId);
-    return {
-      entryId: entry?.entry_id ?? null,
-      teamName: entry?.entry_name || `Autopick (${entry?.short_name ?? "?"})`,
-      manager: entry?.player_first_name
-        ? `${entry.player_first_name} ${entry.player_last_name}`
-        : "—",
-    };
-  };
-
-  const withRemaining = async (leagueEntryId, points, matchFinished) => {
-    const info = teamInfo(leagueEntryId);
-    if (!info.entryId) {
-      return { ...info, points, remaining: { count: 0, points: 0 }, expectedTotal: 0 };
-    }
-    const { roster, hasLineupOrder } = await buildRoster(info.entryId, currentEvent, ref);
-    return {
-      ...info,
-      points: liveScore(roster, hasLineupOrder, points, matchFinished),
-      remaining: summarizeRemaining(roster, hasLineupOrder),
-      expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
-    };
-  };
-
   const relevantMatches = league.matches.filter((m) => m.event === currentEvent);
 
   const matches = await Promise.all(
     relevantMatches.map(async (m) => {
       const [team1, team2] = await Promise.all([
-        withRemaining(m.league_entry_1, m.league_entry_1_points, m.finished),
-        withRemaining(m.league_entry_2, m.league_entry_2_points, m.finished),
+        summarizeSide(ref, m.league_entry_1, m.league_entry_1_points, m.finished),
+        summarizeSide(ref, m.league_entry_2, m.league_entry_2_points, m.finished),
       ]);
       return {
         team1,
@@ -417,6 +453,8 @@ export async function getMatchups(gwOverride) {
       };
     })
   );
+
+  fillAutopickAverages(matches.flatMap((m) => [m.team1, m.team2]));
 
   matches.sort((a, b) => (b.involvesMe ? 1 : 0) - (a.involvesMe ? 1 : 0));
 
@@ -432,56 +470,52 @@ export async function getMatchups(gwOverride) {
 
 /**
  * Full lineup + score breakdown for one head-to-head matchup, identified
- * by the two entry_ids playing in it (order doesn't matter).
+ * by the two side keys in it (an entry_id, or "L<league_entry id>" for an
+ * autopick team; order doesn't matter).
  */
-export async function getMatchupDetail(entryIdA, entryIdB, gwOverride) {
+export async function getMatchupDetail(keyA, keyB, gwOverride) {
   const ref = await getSharedRefData(gwOverride);
   const { league, entries, currentEvent } = ref;
 
+  const keyOf = (leagueEntryId) =>
+    String(entries.get(leagueEntryId)?.entry_id ?? `L${leagueEntryId}`);
+
   const match = league.matches.find((m) => {
     if (m.event !== currentEvent) return false;
-    const e1 = entries.get(m.league_entry_1)?.entry_id;
-    const e2 = entries.get(m.league_entry_2)?.entry_id;
-    return (
-      (e1 === entryIdA && e2 === entryIdB) || (e1 === entryIdB && e2 === entryIdA)
-    );
+    const k1 = keyOf(m.league_entry_1);
+    const k2 = keyOf(m.league_entry_2);
+    return (k1 === keyA && k2 === keyB) || (k1 === keyB && k2 === keyA);
   });
 
   if (!match) return null;
 
-  const buildSide = async (leagueEntryId, officialPoints) => {
-    const entry = entries.get(leagueEntryId);
-    const { roster, hasLineupOrder } = await buildRoster(
-      entry.entry_id,
-      currentEvent,
-      ref
-    );
-    return {
-      entryId: entry.entry_id,
-      teamName: entry.entry_name || `Autopick (${entry.short_name ?? "?"})`,
-      manager: entry.player_first_name
-        ? `${entry.player_first_name} ${entry.player_last_name}`
-        : "—",
-      points: liveScore(roster, hasLineupOrder, officialPoints, match.finished),
-      roster,
-      hasLineupOrder,
-      remaining: summarizeRemaining(roster, hasLineupOrder),
-      expectedTotal: sumExpectedPoints(roster, hasLineupOrder),
-    };
-  };
+  const involvesAutopick =
+    !entries.get(match.league_entry_1)?.entry_id ||
+    !entries.get(match.league_entry_2)?.entry_id;
 
-  const [team1, team2] = await Promise.all([
-    buildSide(match.league_entry_1, match.league_entry_1_points),
-    buildSide(match.league_entry_2, match.league_entry_2_points),
-  ]);
+  // An autopick side needs every real team's numbers to average.
+  const toSummarize = involvesAutopick
+    ? league.matches.filter((m) => m.event === currentEvent)
+    : [match];
+  const sides = (
+    await Promise.all(
+      toSummarize.flatMap((m) => [
+        summarizeSide(ref, m.league_entry_1, m.league_entry_1_points, m.finished),
+        summarizeSide(ref, m.league_entry_2, m.league_entry_2_points, m.finished),
+      ])
+    )
+  );
+  fillAutopickAverages(sides);
+
+  const sideFor = (leagueEntryId) => sides.find((s) => s.leagueEntryId === leagueEntryId);
 
   return {
     leagueName: league.league.name,
     currentGw: currentEvent,
     started: match.started,
     finished: match.finished,
-    team1,
-    team2,
+    team1: sideFor(match.league_entry_1),
+    team2: sideFor(match.league_entry_2),
   };
 }
 

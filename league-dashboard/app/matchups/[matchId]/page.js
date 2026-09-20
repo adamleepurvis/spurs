@@ -3,13 +3,17 @@ import { notFound } from "next/navigation";
 import { getMatchupDetail } from "@/lib/fpl-draft";
 import RosterList from "@/components/RosterList";
 
+const fmtPoints = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
+
 function TeamHeader({ team, winning, align }) {
   return (
     <div className={align === "right" ? "text-right" : "text-left"}>
       <span className={`block text-lg font-bold ${winning ? "text-ink" : "text-ink-dim"}`}>
         {team.teamName}
       </span>
-      <span className="text-xs text-ink-dim">{team.manager}</span>
+      <span className="text-xs text-ink-dim">
+        {team.isAutopick ? "League average" : team.manager}
+      </span>
     </div>
   );
 }
@@ -17,14 +21,15 @@ function TeamHeader({ team, winning, align }) {
 export default async function MatchupDetailPage({ params, searchParams }) {
   const { matchId } = await params;
   const { gw } = await searchParams;
-  const [entryIdA, entryIdB] = matchId.split("-").map(Number);
+  const [keyA, keyB, ...extra] = matchId.split("-");
+  const validKey = (k) => /^(\d+|L\d+)$/.test(k ?? "");
 
-  if (!entryIdA || !entryIdB) notFound();
+  if (extra.length || !validKey(keyA) || !validKey(keyB)) notFound();
 
   const gwParam = Number(gw);
   const data = await getMatchupDetail(
-    entryIdA,
-    entryIdB,
+    keyA,
+    keyB,
     Number.isInteger(gwParam) ? gwParam : undefined
   );
   if (!data) notFound();
@@ -82,11 +87,11 @@ export default async function MatchupDetailPage({ params, searchParams }) {
             </div>
             <div className="flex items-center gap-3">
               <span className={`text-4xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
-                {started ? team1.points : "–"}
+                {started ? fmtPoints(team1.points) : "–"}
               </span>
               <span className="text-ink-dim">&ndash;</span>
               <span className={`text-4xl font-bold ${team2Winning ? "text-ink" : "text-ink-dim"}`}>
-                {started ? team2.points : "–"}
+                {started ? fmtPoints(team2.points) : "–"}
               </span>
             </div>
             {!finished && (
@@ -110,7 +115,7 @@ export default async function MatchupDetailPage({ params, searchParams }) {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {[team1, team2].map((team) => (
           <section
-            key={team.entryId}
+            key={team.key}
             className="overflow-hidden rounded-md border border-pitch-border bg-pitch-surface shadow-lg"
           >
             <div className="flex items-baseline justify-between border-b border-pitch-border px-4.5 py-4">
@@ -119,11 +124,18 @@ export default async function MatchupDetailPage({ params, searchParams }) {
               </h2>
               <span className="text-xs text-ink-dim">GW{data.currentGw} pts</span>
             </div>
-            <RosterList
-              roster={team.roster}
-              hasLineupOrder={team.hasLineupOrder}
-              currentGw={data.currentGw}
-            />
+            {team.isAutopick ? (
+              <p className="px-4 py-3 text-xs text-ink-dim">
+                Autopick has no squad &mdash; its score is the live average of every
+                other team&rsquo;s points and projection this gameweek.
+              </p>
+            ) : (
+              <RosterList
+                roster={team.roster}
+                hasLineupOrder={team.hasLineupOrder}
+                currentGw={data.currentGw}
+              />
+            )}
           </section>
         ))}
       </div>

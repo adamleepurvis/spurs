@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getMatchups } from "@/lib/fpl-draft";
 
+const fmtPoints = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
+
 function StatusBadge({ started, finished }) {
   if (finished) {
     return (
@@ -38,7 +40,9 @@ function TeamSide({ team, points, winning, align }) {
       >
         {team.teamName}
       </span>
-      <span className="text-[11px] text-ink-dim">{team.manager}</span>
+      <span className="text-[11px] text-ink-dim">
+        {team.isAutopick ? "League average" : team.manager}
+      </span>
       <span className="mt-1 text-[10.5px] text-ink-dim">
         {team.remaining.count} remaining ({team.remaining.points.toFixed(1)})
       </span>
@@ -60,7 +64,7 @@ function MatchCard({ match, gw }) {
 
   return (
     <Link
-      href={`/matchups/${team1.entryId}-${team2.entryId}?gw=${gw}`}
+      href={`/matchups/${team1.key}-${team2.key}?gw=${gw}`}
       className={`block rounded-md border bg-pitch-surface p-5 shadow-lg transition-colors hover:bg-pitch-surface2 ${
         involvesMe ? "border-gold/70 shadow-[0_0_0_1px_rgba(242,181,68,0.3)]" : "border-pitch-border"
       }`}
@@ -87,11 +91,11 @@ function MatchCard({ match, gw }) {
           </div>
           <div className="flex items-center gap-3">
             <span className={`text-3xl font-bold ${team1Winning ? "text-ink" : "text-ink-dim"}`}>
-              {started ? team1.points : "–"}
+              {started ? fmtPoints(team1.points) : "–"}
             </span>
             <span className="text-sm text-ink-dim">&ndash;</span>
             <span className={`text-3xl font-bold ${team2Winning ? "text-ink" : "text-ink-dim"}`}>
-              {started ? team2.points : "–"}
+              {started ? fmtPoints(team2.points) : "–"}
             </span>
           </div>
           {!finished && (
