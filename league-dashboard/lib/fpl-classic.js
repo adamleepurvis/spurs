@@ -334,8 +334,13 @@ const CLUB_LIMIT = 3;
  * isn't available without being logged in as this entry), and each
  * swap's budget is figured independently - pooling proceeds from
  * multiple sales into one bigger upgrade isn't modeled.
+ *
+ * `metric` is "ros" (rest-of-season total, the default) or "next"
+ * (single-gameweek forecast) - both numbers are attached to every
+ * player regardless, so the UI can show both; only the ranking and gain
+ * figure change.
  */
-export async function getClassicRosterOptimizer() {
+export async function getClassicRosterOptimizer(metric = "ros") {
   const ref = await getClassicRefData();
   const { currentGw, elements, teams, positions } = ref;
 
@@ -346,6 +351,9 @@ export async function getClassicRosterOptimizer() {
 
   const rosByCode = new Map(copilotPlayers.map((p) => [p.fpl_code, p.total_points]));
   const rosOf = (el) => rosByCode.get(el.code) ?? 0;
+  const epOf = (el) => (el.ep_next != null ? Number(el.ep_next) : 0);
+  const valueOfCandidate = metric === "next" ? epOf : rosOf;
+  const valueOfRoster = (p) => (metric === "next" ? (p.epNext ?? 0) : (p.rosPoints ?? 0));
 
   const myPicks = picks?.picks ?? [];
   const myElementIds = new Set(myPicks.map((p) => p.element));
@@ -377,7 +385,7 @@ export async function getClassicRosterOptimizer() {
     candidatesByPos[positions.get(el.element_type)].push(el);
   }
   for (const pos in candidatesByPos) {
-    candidatesByPos[pos].sort((a, b) => rosOf(b) - rosOf(a));
+    candidatesByPos[pos].sort((a, b) => valueOfCandidate(b) - valueOfCandidate(a));
   }
 
   // Greedily commit the single best (out, candidate) pair available at
@@ -404,7 +412,7 @@ export async function getClassicRosterOptimizer() {
     for (const out of remainingOut) {
       const candidate = findBestFor(out);
       if (!candidate) continue;
-      const gain = rosOf(candidate) - out.rosPoints;
+      const gain = valueOfCandidate(candidate) - valueOfRoster(out);
       if (gain <= 0) continue;
       if (!choice || gain > choice.gain) choice = { out, candidate, gain };
     }
@@ -437,5 +445,5 @@ export async function getClassicRosterOptimizer() {
     return { ...m, rank: i + 1, cumulativeGain: running };
   });
 
-  return { currentGw, bank, moves: ranked };
+  return { currentGw, bank, metric, moves: ranked };
 }

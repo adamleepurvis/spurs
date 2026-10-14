@@ -1,10 +1,28 @@
 import { getRosterOptimizer } from "@/lib/fpl-draft";
+import MetricToggle from "@/components/MetricToggle";
 
 function fmt(n) {
   return n != null ? n.toFixed(1) : "—";
 }
 
-function MoveRow({ m }) {
+function StatPair({ p, metric }) {
+  return (
+    <span className="text-ink-dim">
+      {" "}
+      (
+      <span className={metric === "next" ? "font-semibold text-ink" : ""}>
+        {fmt(p.epNext)} next
+      </span>{" "}
+      &middot;{" "}
+      <span className={metric === "ros" ? "font-semibold text-ink" : ""}>
+        {fmt(p.rosPoints)} ROS
+      </span>
+      )
+    </span>
+  );
+}
+
+function MoveRow({ m, metric }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-b border-pitch-border last:border-b-0">
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pitch-surface2 font-mono text-xs font-bold text-ink-dim">
@@ -17,19 +35,13 @@ function MoveRow({ m }) {
         <span className="block text-[13px]">
           <span className="text-danger">Drop</span>{" "}
           <span className="font-medium">{m.out.name}</span>
-          <span className="text-ink-dim">
-            {" "}
-            ({fmt(m.out.epNext)} next &middot; {fmt(m.out.rosPoints)} ROS)
-          </span>
+          <StatPair p={m.out} metric={metric} />
         </span>
         <span className="block text-[13px]">
           <span className="text-positive">Add</span>{" "}
           <span className="font-medium">{m.in.name}</span>{" "}
           <span className="text-ink-dim">({m.in.team})</span>
-          <span className="text-ink-dim">
-            {" "}
-            ({fmt(m.in.epNext)} next &middot; {fmt(m.in.rosPoints)} ROS)
-          </span>
+          <StatPair p={m.in} metric={metric} />
         </span>
       </span>
       <span className="shrink-0 text-right font-mono">
@@ -44,8 +56,10 @@ function MoveRow({ m }) {
   );
 }
 
-export default async function OptimizerPage() {
-  const data = await getRosterOptimizer();
+export default async function OptimizerPage({ searchParams }) {
+  const params = await searchParams;
+  const metric = params?.metric === "next" ? "next" : "ros";
+  const data = await getRosterOptimizer(metric);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
@@ -55,13 +69,17 @@ export default async function OptimizerPage() {
             Roster Optimizer
           </h1>
           <p className="mt-1.5 text-sm text-ink-dim">
-            Best waiver swaps, ranked by rest-of-season gain &mdash; row N is your
-            optimal plan for exactly N moves
+            Best waiver swaps, ranked by{" "}
+            {metric === "next" ? "next-gameweek" : "rest-of-season"} gain &mdash; row N
+            is your optimal plan for exactly N moves
           </p>
         </div>
-        <span className="inline-flex items-baseline gap-1.5 rounded bg-ink px-3 py-1 font-display text-[15px] font-bold text-pitch-bg">
-          GW{data.currentGw}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="inline-flex items-baseline gap-1.5 rounded bg-ink px-3 py-1 font-display text-[15px] font-bold text-pitch-bg">
+            GW{data.currentGw}
+          </span>
+          <MetricToggle metric={metric} basePath="/optimizer" />
+        </div>
       </div>
 
       {data.moves.length > 0 ? (
@@ -73,7 +91,7 @@ export default async function OptimizerPage() {
             <span className="text-xs text-ink-dim">gain &middot; cumulative</span>
           </div>
           {data.moves.map((m) => (
-            <MoveRow key={`${m.pos}-${m.rank}`} m={m} />
+            <MoveRow key={`${m.pos}-${m.rank}`} m={m} metric={metric} />
           ))}
         </section>
       ) : (

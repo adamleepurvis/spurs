@@ -1005,19 +1005,25 @@ const OPTIMIZER_CANDIDATES_PER_POS = 5;
 
 /**
  * Ranks every plausible waiver swap (drop one of your 15, add a free
- * agent at the same position) by rest-of-season gain, pairing your
- * Nth-weakest player at a position against the Nth-best free agent
+ * agent at the same position) by gain under the chosen metric, pairing
+ * your Nth-weakest player at a position against the Nth-best free agent
  * there. Sorted globally, so "your best plan for K moves" is just the
  * first K rows - each row uses a distinct one of your players and a
  * distinct free agent, so there's no overlap to resolve.
+ *
+ * `metric` is "ros" (rest-of-season total, the default) or "next"
+ * (single-gameweek forecast) - both numbers are attached to every
+ * player regardless, so the UI can show both; only the ranking and gain
+ * figure change.
  */
-export async function getRosterOptimizer() {
+export async function getRosterOptimizer(metric = "ros") {
   const ref = await getSharedRefData();
   const { currentEvent } = ref;
 
   const copilotPlayers = await fetchJson(`${COPILOT_API}/expected-points?window=8`);
   const rosByCode = new Map(copilotPlayers.map((p) => [p.fpl_code, p.total_points]));
   const rosOf = (p) => (p.code != null ? (rosByCode.get(p.code) ?? 0) : 0);
+  const valueOf = (p) => (metric === "next" ? (p.epNext ?? 0) : (p.rosPoints ?? 0));
 
   const { roster: myRosterRaw } = await buildRoster(MY_ENTRY_ID, currentEvent, ref);
   const myRoster = myRosterRaw.map((p) => ({ ...p, rosPoints: rosOf(p) }));
@@ -1042,15 +1048,15 @@ export async function getRosterOptimizer() {
   for (const pos of ["GKP", "DEF", "MID", "FWD"]) {
     const mine = myRoster
       .filter((p) => p.pos === pos)
-      .sort((a, b) => a.rosPoints - b.rosPoints);
+      .sort((a, b) => valueOf(a) - valueOf(b));
     const agents = freeAgents
       .filter((p) => p.pos === pos)
-      .sort((a, b) => b.rosPoints - a.rosPoints)
+      .sort((a, b) => valueOf(b) - valueOf(a))
       .slice(0, OPTIMIZER_CANDIDATES_PER_POS);
 
     const n = Math.min(mine.length, agents.length);
     for (let i = 0; i < n; i++) {
-      const gain = agents[i].rosPoints - mine[i].rosPoints;
+      const gain = valueOf(agents[i]) - valueOf(mine[i]);
       if (gain <= 0) break; // mine[] is ascending, so nothing further at this rank helps either
       candidates.push({
         pos,
@@ -1071,6 +1077,7 @@ export async function getRosterOptimizer() {
 
   return {
     currentGw: currentEvent,
+    metric,
     moves,
   };
 }
