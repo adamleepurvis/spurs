@@ -141,7 +141,7 @@ export async function getLiveMinutes(gw, fixtureMap, classicBootstrap) {
   return empty;
 }
 
-function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live, currentEvent, liveGw }) {
+function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live, eventStarted }) {
   const fixture = fixtureMap.get(el.team);
   const epNextRaw = epNextByCode.get(el.code);
   const epNext = epNextRaw != null ? Number(epNextRaw) : null;
@@ -149,11 +149,14 @@ function enrichPlayer(el, { teams, fixtureMap, epNextByCode, live, currentEvent,
   return {
     code: el.code,
     minutes,
-    // el.event_points is always the *latest* gameweek's; for any other
-    // gameweek use that gameweek's own points from the live feed.
+    // el.event_points reflects FPL's own "current event" pointer, which
+    // lags behind ours - it can still be last gameweek's points even
+    // after we've moved on to viewing the next one, so only trust it
+    // once this gameweek's fixtures have actually kicked off (and the
+    // live feed itself is unavailable, e.g. a transient fetch failure).
     eventPoints: live.available
       ? (live.pointsByCode.get(el.code) ?? 0)
-      : currentEvent === liveGw
+      : eventStarted
         ? el.event_points
         : 0,
     // Only trust "didn't play" once their match is over (or they have no
@@ -416,6 +419,7 @@ async function getSharedRefData(gwOverride) {
     lastGw: bootstrap.events.data[bootstrap.events.data.length - 1].id,
     fixtureMap,
     live,
+    eventStarted: Array.from(fixtureMap.values()).some((f) => f.started),
     isPast: currentEvent < liveGw,
     // ep_next only ever describes the upcoming gameweek, so it says
     // nothing about a gameweek that's already been played.
